@@ -11,14 +11,14 @@ const CMD_PENDENT = "pnd";
 const ERR_OCCUPIED = {};
 
 class Game {
-   constructor(player1, player2, name1, name2) {
+   constructor(player1, player2, name1, name2, token0, token1) {
        this.players = [player1, player2];
        this.names = [name1, name2];
        this.turn = 1;
        this.accepted = false;
        this.color = Math.random() * 0xffffff;
        this.board = new Array(3).fill().map(() => new Array(3).fill(null));
-       this.tokens = ["\ud83d\udfe7", "\ud83d\udfe5"];
+       this.tokens = [token0 || "\ud83d\udfe7", token1 || "\ud83d\udfe5"];
    }
    boardToString() {
        return this.board.map((row, i) => row.map((val, j) => val === null ? `${i*3+j+1}\ufe0f\u20e3` : this.tokens[val]).join("")).join("\n");
@@ -66,7 +66,15 @@ class Game {
 }
 
 const games = new Map();
-
+function isEmoji(str) {
+	const ranges = [
+	  '\ud83c[\udf00-\udfff]', // U+1F300 to U+1F3FF
+	  '\ud83d[\udc00-\ude4f]', // U+1F400 to U+1F64F
+	  '\ud83d[\ude80-\udeff]', // U+1F680 to U+1F6FF
+	  ' ', // Also allow spaces
+	].join('|');
+	return !!new RegExp('^(?:'+ranges+')$').test(str);
+}
 function onMessage(msg) {
 	if (msg.author.bot) return;
 	if (games.size == 0) return;
@@ -102,7 +110,7 @@ function onMessage(msg) {
 	}
 }
 
-function invite(message) {
+function invite(message, args) {
 	if (message.mentions.users.size != 1) {
 		message.reply("debes mencionar a un solo usuario para invitarlo a una partida.");
 		return;
@@ -113,14 +121,14 @@ function invite(message) {
 		message.reply("uno de vosotros ya tiene un juego en proceso o una invitación pendiente.");
 		return;
 	}
-	const game = new Game(player0, player1, message.member.displayName, message.mentions.members.first().displayName);
+	const game = new Game(player0, player1, message.member.displayName, message.mentions.members.first().displayName, isEmoji(args[1]) ? args[1] : undefined);
 	games.set(player0, game);
 	games.set(player1, game);
 	message.channel.send(`${message.member.displayName} te ha retado al 3 en raya, <@${player1}>! `
 		+ `Introduce \`${config.prefix}3r ${CMD_ACCEPT}\` para aceptar o \`${config.prefix}3r ${CMD_REFFUSE}\` para rechazar.`);
 }
 
-function accept(message) {
+function accept(message, args) {
 	const game = games.get(message.author.id);
 	if (!game) {
 		message.reply("no estás invitado a ninguna partida, merluz@.");
@@ -131,6 +139,9 @@ function accept(message) {
 		return;
 	}
 	game.accepted = true;
+	if (args[1] && isEmoji(args[1])) {
+		game.tokens[1] = args[1];
+	}
 	game.printToChannel(message.channel);
 }
 
@@ -172,7 +183,7 @@ module.exports = [
 			if (args.length < 1 || !(lowArgs[0] in fns)) {
 				message.reply(`introduce \`${config.prefix}3r ${CMD_INVITE}\` mencionando a un usuario para invitarlo a una partida.`);
 			} else {
-				fns[lowArgs[0]](message);
+				fns[lowArgs[0]](message, args);
 			}
 		}
 	}
