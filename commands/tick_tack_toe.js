@@ -18,10 +18,10 @@ class Game {
        this.accepted = false;
        this.color = Math.random() * 0xffffff;
        this.board = new Array(3).fill().map(() => new Array(3).fill(null));
-       this.tokens = ["\ud83d\udfe6", "\ud83d\udfe5"];
+       this.tokens = ["\ud83d\udfe7", "\ud83d\udfe5"];
    }
    boardToString() {
-       return this.board.map(row => row.map(val => val === null ? EMPTY_SQUARE : this.tokens[val]).join("")).join("\n");
+       return this.board.map((row, i) => row.map((val, j) => val === null ? `${i*3+j+1}\ufe0f\u20e3` : this.tokens[val]).join("")).join("\n");
    }
    printToChannel(channel, extra) {
 	let desc = `${this.tokens[0]} ${this.names[0]}\n${this.tokens[1]} ${this.names[1]}\n\n`;
@@ -33,6 +33,10 @@ class Game {
 	channel.send(embed);
    }
    play(i, j) {
+	if (j === undefined) {
+		j = ((i - 1) % 3);
+		i = Math.floor((i - 1) / 3);
+	}
         if (this.board[i][j] !== null) {
 		throw ERR_OCCUPIED;
 	}
@@ -68,11 +72,15 @@ function onMessage(msg) {
 	if (games.size == 0) return;
 	const game = games.get(msg.author.id);
 	if (!game || !game.accepted || game.players.indexOf(msg.author.id) != game.turn) return;
-	if (msg.content.startsWith('0') || msg.content.startsWith('1') || msg.content.startsWith('2')) {
-		const match = msg.content.match(/^([0-3])\s*,?\s*([0-3])(?!\d)/);
+	if (msg.content[0] >= '0' && msg.content[0] <= '9') {
+		const match = msg.content.match(/^([0-2])\s*,?\s*([0-2])(?!\d)|^([1-9])/);
 		if (match) {
 			try {
-				game.play(parseInt(match[1], 10), parseInt(match[2], 10));
+				if (match[2] !== undefined) {
+					game.play(parseInt(match[1], 10), parseInt(match[2], 10));
+				} else {
+					game.play(parseInt(match[3], 10));
+				}
 				const winner = game.getWinner();
 				if (winner === undefined) {
 				    game.printToChannel(msg.channel);
@@ -80,12 +88,10 @@ function onMessage(msg) {
 				    game.printToChannel(msg.channel, `\n\nEmpate!`);
 				    games.delete(game.players[0]);
 				    games.delete(game.players[1]);
-	                            console.log("3r Games", games);
 				} else {
 				    game.printToChannel(msg.channel, `\n\nHa ganado ${game.names[winner]}!`);
 				    games.delete(game.players[0]);
 				    games.delete(game.players[1]);
-				    console.log("3r Games", games);
 				}
 			} catch (err) {
 				if (err === ERR_OCCUPIED) {
@@ -110,7 +116,6 @@ function invite(message) {
 	const game = new Game(player0, player1, message.member.displayName, message.mentions.members.first().displayName);
 	games.set(player0, game);
 	games.set(player1, game);
-	console.log("3r Games", games);
 	message.channel.send(`${message.member.displayName} te ha retado al 3 en raya, <@${player1}>! `
 		+ `Introduce \`${config.prefix}3r ${CMD_ACCEPT}\` para aceptar o \`${config.prefix}3r ${CMD_REFFUSE}\` para rechazar.`);
 }
@@ -137,7 +142,6 @@ function cancel(message) {
 	}
 	games.delete(game.players[0]);
 	games.delete(game.players[1]);
-	console.log("3r Games", games);
 	message.channel.send(`Partida de 3 en raya ${game.names[0]} vs ${game.names[1]} cancelada.`);
 }
 
@@ -158,16 +162,17 @@ module.exports = [
 		hooks: {'message': onMessage},
 		execute(message, args, context) {
 			if (!message.author) return;
+			const lowArgs = args.map(arg => arg.toLowerCase());
 			const fns = {
 				[CMD_PENDENT]: pendent,
 				[CMD_ACCEPT]: accept,
 				[CMD_REFFUSE]: cancel,
 				[CMD_INVITE]: invite
 			};
-			if (args.length < 1 || !(args[0] in fns)) {
+			if (args.length < 1 || !(lowArgs[0] in fns)) {
 				message.reply(`introduce \`${config.prefix}3r ${CMD_INVITE}\` mencionando a un usuario para invitarlo a una partida.`);
 			} else {
-				fns[args[0]](message);
+				fns[lowArgs[0]](message);
 			}
 		}
 	}
