@@ -25,7 +25,7 @@ class Game {
    }
    printToChannel(channel, extra) {
 	let desc = `${this.tokens[0]} ${this.names[0]}\n${this.tokens[1]} ${this.names[1]}\n\n`;
-	desc += game.boardToString() + (extra || `\n\nTurno: ${game.names[game.turn]}`);
+	desc += this.boardToString() + (extra || `\n\nTurno: ${this.names[this.turn]}`);
 	const embed = new MessageEmbed()
 		.setTitle('3 en Raya')
 		.setColor(this.color)
@@ -80,10 +80,12 @@ function onMessage(msg) {
 				    game.printToChannel(msg.channel, `\n\nEmpate!`);
 				    games.delete(game.players[0]);
 				    games.delete(game.players[1]);
+	                            console.log("3r Games", games);
 				} else {
 				    game.printToChannel(msg.channel, `\n\nHa ganado ${game.names[winner]}!`);
 				    games.delete(game.players[0]);
 				    games.delete(game.players[1]);
+				    console.log("3r Games", games);
 				}
 			} catch (err) {
 				if (err === ERR_OCCUPIED) {
@@ -105,9 +107,10 @@ function invite(message) {
 		message.reply("uno de vosotros ya tiene un juego en proceso o una invitación pendiente.");
 		return;
 	}
-	game = new Game(player0, player1, message.member.displayName, message.mentions.members.first().displayName);
+	const game = new Game(player0, player1, message.member.displayName, message.mentions.members.first().displayName);
 	games.set(player0, game);
 	games.set(player1, game);
+	console.log("3r Games", games);
 	message.channel.send(`${message.member.displayName} te ha retado al 3 en raya, <@${player1}>! `
 		+ `Introduce \`${config.prefix}3r ${CMD_ACCEPT}\` para aceptar o \`${config.prefix}3r ${CMD_REFFUSE}\` para rechazar.`);
 }
@@ -134,6 +137,7 @@ function cancel(message) {
 	}
 	games.delete(game.players[0]);
 	games.delete(game.players[1]);
+	console.log("3r Games", games);
 	message.channel.send(`Partida de 3 en raya ${game.names[0]} vs ${game.names[1]} cancelada.`);
 }
 
