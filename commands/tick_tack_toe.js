@@ -1,8 +1,6 @@
 const { MessageEmbed } = require('discord.js');
 const config = require('../bot-config.json');
 
-const EMPTY_SQUARE = "\u2b1c";
-
 const CMD_ACCEPT = "acp";
 const CMD_REFFUSE = "rec";
 const CMD_INVITE = "inv";
@@ -44,7 +42,7 @@ class Game {
 	this.turn = 1 - this.turn;
    }
    getWinner() {
-	const equal = (el0, el1, el2) => 
+	const equal = (el0, el1, el2) =>
 	   this.board[el0[0]][el0[1]] !== null
 	   	&& this.board[el0[0]][el0[1]] === this.board[el1[0]][el1[1]]
 		&& this.board[el1[0]][el1[1]] === this.board[el2[0]][el2[1]];
@@ -77,9 +75,9 @@ function isEmoji(str) {
 }
 function onMessage(msg) {
 	if (msg.author.bot) return;
-	if (games.size == 0) return;
+	if (games.size === 0) return;
 	const game = games.get(msg.author.id);
-	if (!game || !game.accepted || game.players.indexOf(msg.author.id) != game.turn) return;
+	if (!game || !game.accepted || game.players.indexOf(msg.author.id) !== game.turn) return;
 	if (msg.content[0] >= '0' && msg.content[0] <= '9') {
 		const match = msg.content.match(/^([0-2])\s*,?\s*([0-2])(?!\d)|^([1-9])/);
 		if (match) {
@@ -111,7 +109,7 @@ function onMessage(msg) {
 }
 
 function invite(message, args) {
-	if (message.mentions.users.size != 1) {
+	if (message.mentions.users.size !== 1) {
 		message.reply("debes mencionar a un solo usuario para invitarlo a una partida.");
 		return;
 	}
@@ -134,7 +132,7 @@ function accept(message, args) {
 		message.reply("no estás invitado a ninguna partida, merluz@.");
 		return;
 	}
-	if (game.players[1] != message.author.id) {
+	if (game.players[1] !== message.author.id) {
 		message.reply(`estás esperando que ${game.names[1]} acepte. Puedes cancelar la invitación con \`${config.prefix}3r ${CMD_REFFUSE}\`.`);
 		return;
 	}
