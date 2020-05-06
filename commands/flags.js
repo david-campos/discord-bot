@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 import {MessageEmbed} from "discord.js";
 
+=======
+const {MessageEmbed} = require("discord.js");
+>>>>>>> 458b5b98d3fbe3a5d68eeb23b6986b5c20a0b0e6
 const config = require('../bot-config.json');
 const flags = require('../assets/flag-emojis.json');
 const levenshtein = require('js-levenshtein');
