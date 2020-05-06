@@ -164,11 +164,12 @@ function pendent(message) {
 	message.reply(`tienes una partida ${game.players[0] === id ? 'saliente' : 'entrante'} ${game.accepted ? 'en curso' : 'pendiente de aceptación'}.`);
 }
 
-module.exports = [
+module.exports = {
+	hooks: {'message': onMessage},
+	commands: [
 	{
 		name: '3r',
 		description: '3 en raya',
-		hooks: {'message': onMessage},
 		execute(message, args, context) {
 			if (!message.author) return;
 			const lowArgs = args.map(arg => arg.toLowerCase());
@@ -186,5 +187,5 @@ module.exports = [
 		}
 	}
 
-];
+]};
 

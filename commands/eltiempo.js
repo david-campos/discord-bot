@@ -1,7 +1,7 @@
 const moment = require('moment');
 const { MessageEmbed } = require('discord.js');
 
-module.exports = {
+module.exports = {commands: [{
 	name: 'eltiempo',
 	description: 'El tiempo',
 	execute(message, args, context) {
@@ -12,4 +12,4 @@ module.exports = {
 			.setDescription(moment().locale(loc).format('LLLL'));
 		message.channel.send(embed);
 	}
-};
+}]};

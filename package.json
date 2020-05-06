@@ -13,6 +13,7 @@
     "moment": "^2.25.3"
   },
   "dependencies": {
-    "js-levenshtein": "^1.1.6"
+    "sequelize": "^5.21.7",
+    "sqlite3": "^4.2.0"
   }
 }
