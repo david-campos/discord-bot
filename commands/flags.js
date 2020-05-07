@@ -21,7 +21,8 @@ let known = new Set();
 let speedRunRemainingFlags = null;
 let lastFlagTime = null;
 const inSpeedRun = () => speedRunRemainingFlags !== null && speedRunRemainingFlags > 0;
-let speedRunAnswers = [];
+/** @type {Map|null} */
+let speedRunAnswers = null;
 
 
 /**
@@ -198,12 +199,13 @@ async function answerTopUserStats(message, context) {
 
 /**
  * @param {module:"discord.js".TextChannel} channel
+ * @param {string} [description]
  */
-async function sendCurrentFlag(channel) {
+async function sendCurrentFlag(channel, description) {
     const embed = new MessageEmbed()
         .setTitle(`${currentFlag.emoji} What does this flag represent?`)
         .setColor(0xffffff)
-        .setDescription(`Use \`${config.prefix}flag country\` to guess.`);
+        .setDescription(description || `Use \`${config.prefix}flag country\` to guess.`);
     await channel.send(embed);
     await channel.send(currentFlag.emoji);
 }
@@ -230,13 +232,40 @@ async function speedRunMessageReception(message, context) {
         if (currentFlag === null) {
             speedRunRemainingFlags -= 1;
             if (inSpeedRun()) {
-                speedRunAnswers.push({user: message.author.id, timestamp: moment()});
-                await message.channel.send(`Remaining flags: ${speedRunRemainingFlags}`);
+                const guessTime = moment().diff(lastFlagTime, 'm', true);
+                let arr = speedRunAnswers.get(message.author.id);
+                if (arr === undefined) {
+                    arr = [guessTime];
+                } else {
+                    arr.push(guessTime);
+                }
+                speedRunAnswers.set(message.author.id, arr);
                 newFlag();
-                await sendCurrentFlag(message.channel);
+                await sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`);
             } else {
                 speedRunRemainingFlags = null;
-                await message.channel.send(`End of speedrun \`\`\`${JSON.stringify(speedRunAnswers)}\`\`\``);
+                /** @type {[EmbedFieldData[], number]}*/
+                const fields = [];
+                for (let [userId, answers] of speedRunAnswers.entries()) {
+                    const user = await context.client.users.fetch(userId);
+                    const avgTime = answers.reduce((p, c) => p + c) / answers.length;
+                    fields.push([{
+                        name: user.username,
+                        value: `Guesses: ${answers.length}\n`
+                            + `Average guess time: ${avgTime/1000}`,
+                        inline: true
+                    }, avgTime]);
+                }
+                fields.sort((a, b) => a[1] - b[1]);
+                for (let i = 0; i < MEDALS.length; i++) {
+                    if (fields[i]) fields[i][0].name = `${MEDALS[i]} ${fields[i][0].name}`
+                }
+                const embed = new MessageEmbed()
+                    .setTitle(`End of the speed-run!`)
+                    .setColor(0xff00ff)
+                    .setDescription(`This are the results:`)
+                    .addFields(fields.map(el => el[0]));
+                await message.channel.send(embed);
                 context.unlockMessageReception();
             }
         }
@@ -319,19 +348,18 @@ module.exports = {
                     return;
                 }
                 if (args.length === 0 || isNaN(args[0]) || parseInt(args[0], 10) < 1) {
-                    message.reply(`use \`${config.prefix}flag-speed *x*\`, where x is the number of flags, you tard.`);
+                    message.reply(`use \`${config.prefix}flag-speed x\`, where x is the number of flags, you tard.`);
                     return;
                 }
                 speedRunRemainingFlags = parseInt(args[0], 10);
-                speedRunAnswers = [];
+                speedRunAnswers = new Map();
                 const embed = new MessageEmbed()
                     .setTitle(`\u23f2\ufe0f Speed-run started!`)
                     .setColor(0x0000ff)
                     .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
                 message.channel.send(embed);
                 newFlag();
-                sendCurrentFlag(message.channel).then();
-                message.channel.send(`Remaining flags: ${speedRunRemainingFlags}`);
+                sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`).then();
                 context.lockMessageReception(speedRunMessageReception);
             }
         },
