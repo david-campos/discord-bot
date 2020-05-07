@@ -228,6 +228,7 @@ async function speedRunMessageReception(message, context) {
             .setDescription(`The current speed run has been cancelled`);
         await message.channel.send(embed);
     } else {
+        if (currentFlag == null) return;
         await flagGuess(message.channel, message.author, message.content, context, message, true);
         if (currentFlag === null) {
             speedRunRemainingFlags -= 1;
@@ -257,7 +258,7 @@ async function speedRunMessageReception(message, context) {
                     }, avgTime, answers.length]);
                 }
                 fields.sort((a, b) => {
-                    const val = a[2] - b[2];
+                    const val = -(a[2] - b[2]);
                     if (val === 0) {
                         return a[1] - b[1];
                     } else return val;
