@@ -237,7 +237,7 @@ module.exports = {
             name: 'flag',
             description: 'Gives a random flag to guess',
             execute(message, args, context) {
-                if (args.length === 0) {
+                if (args.length === 0 || currentFlag == null) {
                     if (currentFlag == null) {
                         newFlag();
                     }
