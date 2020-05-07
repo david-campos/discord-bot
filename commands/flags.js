@@ -228,23 +228,23 @@ async function speedRunMessageReception(message, context) {
             .setDescription(`The current speed run has been cancelled`);
         await message.channel.send(embed);
     } else {
-        await flagGuess(message.channel, message.author, message.content, context, message);
+        await flagGuess(message.channel, message.author, message.content, context, message, true);
         if (currentFlag === null) {
             speedRunRemainingFlags -= 1;
+            const guessTime = moment().diff(lastFlagTime, 'milliseconds', true);
+            let arr = speedRunAnswers.get(message.author.id);
+            if (arr === undefined) {
+                arr = [guessTime];
+            } else {
+                arr.push(guessTime);
+            }
+            speedRunAnswers.set(message.author.id, arr);
             if (inSpeedRun()) {
-                const guessTime = moment().diff(lastFlagTime, 'm', true);
-                let arr = speedRunAnswers.get(message.author.id);
-                if (arr === undefined) {
-                    arr = [guessTime];
-                } else {
-                    arr.push(guessTime);
-                }
-                speedRunAnswers.set(message.author.id, arr);
                 newFlag();
                 await sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`);
             } else {
                 speedRunRemainingFlags = null;
-                /** @type {[EmbedFieldData[], number]}*/
+                /** @type {[EmbedFieldData[], number, number]}*/
                 const fields = [];
                 for (let [userId, answers] of speedRunAnswers.entries()) {
                     const user = await context.client.users.fetch(userId);
@@ -252,11 +252,16 @@ async function speedRunMessageReception(message, context) {
                     fields.push([{
                         name: user.username,
                         value: `Guesses: ${answers.length}\n`
-                            + `Average guess time: ${avgTime/1000}`,
+                            + `Average guess time: ${(avgTime/1000).toFixed(2)}`,
                         inline: true
-                    }, avgTime]);
+                    }, avgTime, answers.length]);
                 }
-                fields.sort((a, b) => a[1] - b[1]);
+                fields.sort((a, b) => {
+                    const val = a[2] - b[2];
+                    if (val === 0) {
+                        return a[1] - b[1];
+                    } else return val;
+                });
                 for (let i = 0; i < MEDALS.length; i++) {
                     if (fields[i]) fields[i][0].name = `${MEDALS[i]} ${fields[i][0].name}`
                 }
@@ -278,22 +283,26 @@ async function speedRunMessageReception(message, context) {
  * @param {string} guess
  * @param {Context} context
  * @param {Message} [reactToMessage] if present, react to the message instead of answering with a new message
+ * @param {boolean} [doNotSave]
  * @returns {Promise<void>}
  */
-async function flagGuess(channel, user, guess, context, reactToMessage) {
+async function flagGuess(channel, user, guess, context, reactToMessage,
+                         doNotSave) {
     const score = mistakesInGuess(guess)
     attempts += 1;
     const accepted = score === 0;
     const flagName = currentFlag.name;
     const flagEmoji = currentFlag.emoji;
     if (accepted) {
-        ScoreEntry.create({
-            user_id: user.id,
-            attempts: attempts,
-            hints: hints,
-            flag: currentFlag.name,
-            score: score
-        }).then();
+        if (!doNotSave) {
+            ScoreEntry.create({
+                user_id: user.id,
+                attempts: attempts,
+                hints: hints,
+                flag: currentFlag.name,
+                score: score
+            }).then();
+        }
         currentFlag = null;
     }
     if (!reactToMessage) {
