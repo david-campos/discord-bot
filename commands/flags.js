@@ -81,7 +81,6 @@ function getRandomHint() {
         known.add(letters.splice(next, 1)[0]);
         count++;
     }
-    hints += count;
     return currentFlag.name.split("").map(
         (v, i) => known.has(i) || v.match(/[^A-Za-z]/) ? v + " " : "\\_ ").join("");
 }
