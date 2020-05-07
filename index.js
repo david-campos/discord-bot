@@ -5,6 +5,29 @@ const fs = require('fs');
 const client = new Discord.Client();
 const {Sequelize} = require('sequelize');
 
+/**
+ * This is used to lock the command parsing to a concrete function. This way,
+ * the commands can require to receive all the messages until they unlock it.
+ * In this variable the function to be called during the lock is saved.
+ */
+let messageReceptionLock = null;
+
+/**
+ * @param {function} callback function which will process messages until the lock is released, it
+ * will receive the messages and the context as arguments
+ */
+function lockMessageReception(callback) {
+    if (messageReceptionLock) {
+        throw new Error("message lock already in use");
+    } else {
+        messageReceptionLock = callback;
+    }
+}
+
+function unlockMessageReception() {
+    if (messageReceptionLock) messageReceptionLock = null;
+}
+
 client.commands = new Discord.Collection();
 
 const sequelize = new Sequelize({
@@ -15,10 +38,14 @@ const sequelize = new Sequelize({
 /**
  * Context for the commands to receive.
  * @typedef {Object} Context
+ * @property {function} lockMessageReception
+ * @property {function} unlockMessageReception
  * @property {Client} client the current discord client instance
  * @property {Sequelize} sequelize's database connection
  */
 const context = {
+    lockMessageReception: lockMessageReception,
+    unlockMessageReception: unlockMessageReception,
     client: client,
     sequelize: sequelize
 };
@@ -51,7 +78,12 @@ function registerAndInitCommands() {
  * @param {Message} msg
  */
 function mainMessageHandler(msg) {
+    if (messageReceptionLock) {
+        messageReceptionLock(msg, context);
+        return;
+    }
     if (msg.author.bot) return;
+
     const withPrefix = msg.content.startsWith(config.prefix);
     if (!(withPrefix/*|| msg.mentions.has(client.user)*/)) return;
     const args = msg.content.slice(config.prefix.length).split(/ +/);
