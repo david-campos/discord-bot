@@ -21,6 +21,8 @@ let known = new Set();
 let speedRunRemainingFlags = null;
 let lastFlagTime = null;
 let lastHintTime = null;
+/** @type {module:"discord.js".Message|null} */
+let hintCooldownMessage = null;
 const inSpeedRun = () => speedRunRemainingFlags !== null && speedRunRemainingFlags > 0;
 /** @type {Map|null} */
 let speedRunAnswers = null;
@@ -218,11 +220,23 @@ async function sendCurrentFlag(channel, description) {
 async function speedRunMessageReception(message, context) {
     if (message.author.bot) return;
     if (message.content === "??") {
-        if (lastHintTime === null || moment().diff(lastHintTime, 's') >= 2) {
+        if (hintCooldownMessage == null && (lastHintTime === null || moment().diff(lastHintTime, 's') >= 4)) {
             const hint = getRandomHint();
             await message.channel.send(`Hint:  ${hint}`);
         } else {
-            await message.reply(`Hint cooldown! ${2 - moment().diff(lastHintTime, 's')}s remaining.`);
+            const milis = Math.max(4000 - moment().diff(lastHintTime, 'milliseconds'), 0);
+            const text = `Hint cooldown! ${milis/1000}s remaining.`;
+            if (!hintCooldownMessage) {
+                setTimeout(() => {
+                    if (hintCooldownMessage) {
+                        hintCooldownMessage.react('\ud83c\udd97');
+                        hintCooldownMessage = null;
+                    }
+                }, milis);
+                hintCooldownMessage = await message.channel.send(text);
+            } else {
+                await hintCooldownMessage.edit(text);
+            }
         }
     } else if (message.content === "\u274c") {
         speedRunRemainingFlags = null;
@@ -258,7 +272,7 @@ async function speedRunMessageReception(message, context) {
                     fields.push([{
                         name: user.username,
                         value: `Guesses: ${answers.length}\n`
-                            + `Average guess time: ${(avgTime/1000).toFixed(2)}`,
+                            + `Average guess time: ${(avgTime / 1000).toFixed(2)}`,
                         inline: true
                     }, avgTime, answers.length]);
                 }
