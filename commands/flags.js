@@ -20,6 +20,7 @@ let known = new Set();
 
 let speedRunRemainingFlags = null;
 let lastFlagTime = null;
+let lastHintTime = null;
 const inSpeedRun = () => speedRunRemainingFlags !== null && speedRunRemainingFlags > 0;
 /** @type {Map|null} */
 let speedRunAnswers = null;
@@ -81,6 +82,7 @@ function getRandomHint() {
         known.add(letters.splice(next, 1)[0]);
         count++;
     }
+    lastHintTime = moment();
     return currentFlag.name.split("").map(
         (v, i) => known.has(i) || v.match(/[^A-Za-z]/) ? v + " " : "\\_ ").join("");
 }
@@ -216,8 +218,12 @@ async function sendCurrentFlag(channel, description) {
 async function speedRunMessageReception(message, context) {
     if (message.author.bot) return;
     if (message.content === "??") {
-        const hint = getRandomHint();
-        await message.channel.send(`Hint:  ${hint}`);
+        if (lastHintTime === null || moment().diff(lastHintTime, 's') >= 2) {
+            const hint = getRandomHint();
+            await message.channel.send(`Hint:  ${hint}`);
+        } else {
+            await message.reply(`Hint cooldown! ${2 - moment().diff(lastHintTime, 's')}s remaining.`);
+        }
     } else if (message.content === "\u274c") {
         speedRunRemainingFlags = null;
         context.unlockMessageReception();
