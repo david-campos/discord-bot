@@ -22,6 +22,8 @@ let speedRunRemainingFlags = null;
 let lastFlagTime = null;
 let lastHintTime = null;
 /** @type {module:"discord.js".Message|null} */
+let pinnedFlagMessage = null;
+/** @type {module:"discord.js".Message|null} */
 let hintCooldownMessage = null;
 const inSpeedRun = () => speedRunRemainingFlags !== null && speedRunRemainingFlags > 0;
 /** @type {Map|null} */
@@ -203,6 +205,7 @@ async function answerTopUserStats(message, context) {
 /**
  * @param {module:"discord.js".TextChannel} channel
  * @param {string} [description]
+ * @return {module:"discord.js".Message}
  */
 async function sendCurrentFlag(channel, description) {
     const embed = new MessageEmbed()
@@ -210,7 +213,7 @@ async function sendCurrentFlag(channel, description) {
         .setColor(0xffffff)
         .setDescription(description || `Use \`${config.prefix}flag country\` to guess.`);
     await channel.send(embed);
-    await channel.send(currentFlag.emoji);
+    return channel.send(currentFlag.emoji);
 }
 
 /**
@@ -261,9 +264,13 @@ async function speedRunMessageReception(message, context) {
             speedRunAnswers.set(message.author.id, arr);
             if (inSpeedRun()) {
                 newFlag();
-                await sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`);
+                if (pinnedFlagMessage) pinnedFlagMessage.unpin().then();
+                pinnedFlagMessage = await sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`);
+                pinnedFlagMessage.pin().then();
             } else {
                 speedRunRemainingFlags = null;
+                if (pinnedFlagMessage) pinnedFlagMessage.unpin().then();
+                pinnedFlagMessage = null;
                 /** @type {[EmbedFieldData[], number, number]}*/
                 const fields = [];
                 for (let [userId, answers] of speedRunAnswers.entries()) {
@@ -389,7 +396,11 @@ module.exports = {
                     .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
                 message.channel.send(embed);
                 newFlag();
-                sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`).then();
+                sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`)
+                    .then(msg => {
+                        pinnedFlagMessage = msg;
+                        pinnedFlagMessage.pin().then();
+                    });
                 context.lockMessageReception(speedRunMessageReception);
             }
         },
