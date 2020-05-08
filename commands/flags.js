@@ -219,7 +219,7 @@ async function sendCurrentFlag(channel, description) {
  */
 async function speedRunMessageReception(message, context) {
     if (message.author.bot) return;
-    if (message.content === "??") {
+    if (message.content === "??" || message.content === "?") {
         if (hintCooldownMessage == null && (lastHintTime === null || moment().diff(lastHintTime, 's') >= 4)) {
             const hint = getRandomHint();
             await message.channel.send(`Hint:  ${hint}`);
