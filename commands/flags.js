@@ -245,6 +245,7 @@ async function speedRunMessageReception(message, context) {
         speedRunRemainingFlags = null;
         hintMessage = null;
         speedRunAnswers = null;
+        currentFlag = null;
         context.unlockMessageReception();
         const embed = new MessageEmbed()
             .setTitle(`Speed-run cancelled!`)
