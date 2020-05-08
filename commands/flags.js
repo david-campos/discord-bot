@@ -22,7 +22,8 @@ let speedRunRemainingFlags = null;
 let lastFlagTime = null;
 let lastHintTime = null;
 /** @type {module:"discord.js".Message|null} */
-let hintCooldownMessage = null;
+let hintMessage = null;
+let hintText = null;
 const inSpeedRun = () => speedRunRemainingFlags !== null && speedRunRemainingFlags > 0;
 /** @type {Map|null} */
 let speedRunAnswers = null;
@@ -220,26 +221,30 @@ async function sendCurrentFlag(channel, description) {
 async function speedRunMessageReception(message, context) {
     if (message.author.bot) return;
     if (message.content === "??" || message.content === "?") {
-        if (hintCooldownMessage == null && (lastHintTime === null || moment().diff(lastHintTime, 's') >= 4)) {
-            const hint = getRandomHint();
-            await message.channel.send(`Hint:  ${hint}`);
-        } else {
-            const milis = Math.max(4000 - moment().diff(lastHintTime, 'milliseconds'), 0);
-            const text = `Hint cooldown! ${milis/1000}s remaining.`;
-            if (!hintCooldownMessage) {
-                setTimeout(() => {
-                    if (hintCooldownMessage) {
-                        hintCooldownMessage.react('\ud83c\udd97');
-                        hintCooldownMessage = null;
-                    }
-                }, milis);
-                hintCooldownMessage = await message.channel.send(text);
+        if (lastHintTime === null || moment().diff(lastHintTime, 's') >= 3) {
+            setTimeout(() => {
+                if (hintMessage) {
+                    hintMessage.edit(hintText);
+                }
+            }, 3000);
+            hintText = `Hint: ${getRandomHint()}\n`;
+            const content = hintText + `Hint cooldown! 3s remaining.`;
+            if (hintMessage) {
+                hintMessage.edit(content).then();
             } else {
-                await hintCooldownMessage.edit(text);
+                hintMessage = await message.channel.send(content);
+            }
+        } else {
+            const milis = Math.max(3000 - moment().diff(lastHintTime, 'milliseconds'), 0);
+            const text = `Hint cooldown! ${milis / 1000}s remaining.`;
+            if (hintMessage) {
+                await hintMessage.edit(hintText + text);
             }
         }
     } else if (message.content === "\u274c") {
         speedRunRemainingFlags = null;
+        hintMessage = null;
+        speedRunAnswers = null;
         context.unlockMessageReception();
         const embed = new MessageEmbed()
             .setTitle(`Speed-run cancelled!`)
@@ -261,9 +266,11 @@ async function speedRunMessageReception(message, context) {
             speedRunAnswers.set(message.author.id, arr);
             if (inSpeedRun()) {
                 newFlag();
+                hintMessage = null;
                 await sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`);
             } else {
                 speedRunRemainingFlags = null;
+                hintMessage = null;
                 /** @type {[EmbedFieldData[], number, number]}*/
                 const fields = [];
                 for (let [userId, answers] of speedRunAnswers.entries()) {
