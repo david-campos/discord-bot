@@ -228,8 +228,8 @@ async function speedRunMessageReception(message, context) {
         await message.channel.send(embed);
     } else {
         if (currentFlag == null) return;
-        await flagGuess(message.channel, message.author, message.content, context, message, true);
-        if (currentFlag === null) {
+        const accepted = await flagGuess(message.channel, message.author, message.content, context, message, true);
+        if (currentFlag === null && accepted) {
             speedRunRemainingFlags -= 1;
             const guessTime = moment().diff(lastFlagTime, 'milliseconds', true);
             let arr = speedRunAnswers.get(message.author.id);
@@ -284,7 +284,7 @@ async function speedRunMessageReception(message, context) {
  * @param {Context} context
  * @param {Message} [reactToMessage] if present, react to the message instead of answering with a new message
  * @param {boolean} [doNotSave]
- * @returns {Promise<void>}
+ * @returns {boolean}
  */
 async function flagGuess(channel, user, guess, context, reactToMessage,
                          doNotSave) {
@@ -322,6 +322,7 @@ Hints: ${hints}`
     } else {
         await reactToMessage.react(accepted ? RIGHT : WRONG);
     }
+    return accepted;
 }
 
 module.exports = {
