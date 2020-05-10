@@ -548,7 +548,8 @@ module.exports = {
             attempts: {type: Sequelize.INTEGER, allowNull: false},
             hints: {type: Sequelize.INTEGER, allowNull: false},
             flag: {type: Sequelize.STRING, allowNull: false}
-        }, {sequelize: context.sequelize, modelName: 'flags_score_entry'});
+        }, {sequelize: context.sequelize, modelName: 'flags_score_entry',
+            timestamps: false});
     },
     commands: [
         {
