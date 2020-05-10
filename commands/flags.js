@@ -15,6 +15,9 @@ const moment = require('moment');
 const WRONG = '\u274c'
 const RIGHT = '\u2705'
 
+const EXPERT_RUN_SECS = 5;
+const EXPERT_MAX_FAILURES = 10;
+
 const MEDALS = [
     "\ud83e\udd47",
     "\ud83e\udd48",
@@ -22,7 +25,14 @@ const MEDALS = [
 ];
 
 class ChannelState {
-    constructor() {
+    /**
+     * @param {Bot} bot
+     * @param {string} channelId
+     */
+    constructor(bot, channelId) {
+        this.bot = bot;
+        this.channelId = channelId;
+
         /** @type {Flag|null} */
         this.currentFlag = null;
         this.attempts = 0;
@@ -37,6 +47,15 @@ class ChannelState {
         this.hintText = null;
         /** @type {Map|null} */
         this.speedRunAnswers = null;
+
+        /** @type {string|null} */
+        this.expertRunUserId = null;
+        /** @type {Flag[]|null} */
+        this.expertRunPool = null;
+        /** @type {number} */
+        this.expertRunFailures = 0;
+        /** @type {number|null} */
+        this.expertRunTimeout = null;
     }
 
     inSpeedRun() {
@@ -45,12 +64,22 @@ class ChannelState {
 
     /**
      * Replaces the current flag for a random new one
+     * @param {Flag[]} [pool] - flag of pools to take one from, if undefined it will pick one
+     * at random from flags.data. Notice if you pass a pool in, the selected flag will be popped
+     * from the pool.
      */
-    newFlag() {
+    newFlag(pool) {
+        const flagArray = pool ? pool : flags.data;
         let flag;
+        let index = Math.floor(Math.random() * flagArray.length) - 1; //  we will add one at the start of the loop
         do {
-            flag = flags.data[Math.floor(Math.random() * flags.data.length)];
+            index = (index + 1) % flagArray.length;
+            flag = flagArray[index];
         } while (!flag.emoji); // Should not happen
+        // If we received a pull, pop from the pull
+        if (pool) {
+            pool.splice(index, 1);
+        }
         this.currentFlag = flag;
         this.attempts = 0;
         this.hints = 0;
@@ -232,7 +261,7 @@ class ChannelState {
      * @returns {boolean}
      */
     async flagGuess(channel, user, guess, context, reactToMessage,
-                             doNotSave) {
+                    doNotSave) {
         const score = this.mistakesInGuess(guess)
         this.attempts += 1;
         const accepted = score === 0;
@@ -268,6 +297,130 @@ Hints: ${this.hints}`
             await reactToMessage.react(accepted ? RIGHT : WRONG);
         }
         return accepted;
+    }
+
+    /**
+     * @param {module:"discord.js".Message} message
+     * @param {Bot} context
+     */
+    async startExpertRun(message, context) {
+        if (this.expertRunUserId !== null) {
+            throw new Error('there is already an expert run going on!');
+        }
+        if (this.currentFlag != null) {
+            throw new Error('you must guess the current flag before starting an expert run.');
+        }
+        this.expertRunUserId = message.author.id;
+        this.expertRunPool = flags.data.slice(0); // clone of all the flags
+        this.expertRunFailures = 0;
+        this.newFlag(this.expertRunPool);
+        context.lockMessageReception(message.channel, this._expertRunMessageReception.bind(this));
+
+        const displayName = message.member ? message.member.displayName : message.author.username;
+
+        const embed = new MessageEmbed()
+            .setTitle(`\ud83d\udc53 ${displayName} has started an **expert run**!`)
+            .setColor(0xf040c0)
+            .setDescription(
+                `\u26a0 During the run, I will only be listening to **${message.author.username}**.\n\n` +
+                `\u23f2 You have ${EXPERT_RUN_SECS} to answer each flag (it resets on mistakes).\n` +
+                `\u2753 There is no option for hints.\n` +
+                `\ud83d\udea7 You can only make ${EXPERT_MAX_FAILURES} mistakes in total.\n`
+            );
+        await message.channel.send(embed);
+        await message.channel.send(this.currentFlag.emoji);
+        await message.channel.send(
+            `*Remaining flags: ${this.expertRunPool.length + 1}*\n*Failures: **${this.expertRunFailures}***`);
+        this._expertResetTimeout();
+    }
+
+    _expertResetTimeout() {
+        clearTimeout(this.expertRunTimeout);
+        this.expertRunTimeout = setTimeout(
+            this._expertRunOnTimedOut.bind(this),
+            EXPERT_RUN_SECS * 1000);
+    }
+
+    _expertRunOnTimedOut() {
+        const channel = this.bot.client.channels.cache.get(this.channelId);
+        if (!channel)
+            throw new Error('Expert run timeout but channel not in cache!');
+        this.expertRunUserId = null;
+        this.currentFlag = null;
+        this.bot.unlockMessageReception(channel);
+
+        const embed = new MessageEmbed()
+            .setTitle(`${WRONG} Expert run failed!`)
+            .setColor(0xff0000)
+            .setDescription(
+                `\u23f2 You ran out of time to answer the flag, next time remember you only have ${EXPERT_RUN_SECS} seconds!\n` +
+                this._expertAnsweredFlagsText()
+            );
+        channel.send(embed);
+    }
+
+    _expertAnsweredFlagsText() {
+        const answered = flags.data.length - this.expertRunPool.length - 1; // last one not answered, so -1
+        const percentage = Math.round(answered / flags.data.length * 100);
+        return `Total answered flags: ${answered} (${percentage}%)`;
+    }
+
+    /**
+     * @param {module:"discord.js".Message} message
+     * @param {Bot} context
+     * @private
+     */
+    async _expertRunMessageReception(message, context) {
+        if (!message.author || message.author.id !== this.expertRunUserId)
+            return; // Ignore everyone else
+
+        if (this.currentFlag == null) return;
+        clearTimeout(this.expertRunTimeout);
+        this.expertRunTimeout = null;
+        const accepted = await this.flagGuess(message.channel, message.author,
+            message.content, context, message, true);
+        if (accepted) {
+            if (this.expertRunPool.length > 0) {
+                this.newFlag(this.expertRunPool);
+                await message.channel.send(this.currentFlag.emoji);
+                await message.channel.send(
+                    `*Remaining flags: ${this.expertRunPool.length + 1}*\n*Failures: **${this.expertRunFailures}***`);
+                this._expertResetTimeout();
+            } else {
+                this.expertRunUserId = null;
+                this.bot.unlockMessageReception(message.channel);
+
+                const displayName = message.member ? message.member.displayName : message.author.username;
+
+                const embed = new MessageEmbed()
+                    .setTitle(`\ud83c\udf89 Expert run completed!`)
+                    .setColor(0x00ff00)
+                    .setDescription(
+                        `Congratulations ${displayName}! You've completed all the flags and you are now an **EXPERT**!\n` +
+                        `\ud83d\ude2e You made only ${this.expertRunFailures} mistakes!\n`
+                    );
+                message.channel.send(embed).then();
+            }
+        } else {
+            this.expertRunFailures += 1;
+            if (this.expertRunFailures >= EXPERT_MAX_FAILURES) {
+                this.expertRunUserId = null;
+                this.currentFlag = null;
+                this.bot.unlockMessageReception(message.channel);
+
+                const embed = new MessageEmbed()
+                    .setTitle(`${WRONG} Expert run failed!`)
+                    .setColor(0xff0000)
+                    .setDescription(
+                        `You made ${this.expertRunFailures} mistakes!\n` +
+                        this._expertAnsweredFlagsText()
+                    );
+                message.channel.send(embed).then();
+            } else {
+                message.channel.send(`*Failures: **${this.expertRunFailures}***`).then();
+                this._expertResetTimeout();
+            }
+        }
     }
 }
 
@@ -375,13 +528,14 @@ async function answerTopUserStats(message, context) {
 
 /**
  * @param {module:"discord.js".Message} message
+ * @param {Bot} context
  * @return {ChannelState}
  */
-function getOrGenerateState(message) {
+function getOrGenerateState(message, context) {
     if (channelStates.has(message.channel.id)) {
         return channelStates.get(message.channel.id);
     } else {
-        const state = new ChannelState();
+        const state = new ChannelState(context, message.channel.id);
         channelStates.set(message.channel.id, state);
         return state;
     }
@@ -406,7 +560,7 @@ module.exports = {
              * @param {Bot} context
              */
             execute(message, args, context) {
-                const state = getOrGenerateState(message);
+                const state = getOrGenerateState(message, context);
                 if (args.length === 0 || state.currentFlag == null) {
                     if (state.currentFlag == null) {
                         state.newFlag();
@@ -426,7 +580,7 @@ module.exports = {
              * @param {Bot} context
              */
             execute(message, args, context) {
-                const state = getOrGenerateState(message);
+                const state = getOrGenerateState(message, context);
                 if (state.currentFlag) {
                     message.reply("you can't start a speedrun until you guess the current flag. Now go to your room.");
                     return;
@@ -456,7 +610,7 @@ module.exports = {
              * @param {Bot} context
              */
             execute(message, args, context) {
-                const state = getOrGenerateState(message);
+                const state = getOrGenerateState(message, context);
                 if (state.currentFlag === null) {
                     message.reply(`use \`${config.prefix}flag\` to get a random flag to guess, you lil piece of shit.`);
                     return;
@@ -464,6 +618,18 @@ module.exports = {
                 const hint = state.getRandomHint();
                 state.hints += 1;
                 message.channel.send(`The answer is  ${hint} (${state.hints} total hints)`);
+            }
+        },
+        {
+            name: 'flag-expert',
+            description: 'Start an expert run',
+            async execute(message, args, context) {
+                const state = getOrGenerateState(message, context);
+                try {
+                    await state.startExpertRun(message, context);
+                } catch (err) {
+                    message.reply(err.message);
+                }
             }
         },
         {
