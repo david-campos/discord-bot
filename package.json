@@ -13,6 +13,7 @@
     "moment": "^2.25.3"
   },
   "dependencies": {
+    "emoji-flags": "^1.2.0",
     "sequelize": "^5.21.7",
     "sqlite3": "^4.2.0"
   }

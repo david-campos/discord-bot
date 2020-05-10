@@ -9,8 +9,7 @@
 const {MessageEmbed} = require("discord.js");
 const Sequelize = require("sequelize");
 const config = require('../bot-config.json');
-/** @type {{emoji: string, name: string, code: string, unicode: string}[]} */
-const flags = require('../assets/flag-emojis.json');
+const flags = require('emoji-flags');
 const moment = require('moment');
 
 const WRONG = '\u274c'
@@ -24,6 +23,7 @@ const MEDALS = [
 
 class ChannelState {
     constructor() {
+        /** @type {Flag|null} */
         this.currentFlag = null;
         this.attempts = 0;
         this.hints = 0;
@@ -49,7 +49,7 @@ class ChannelState {
     newFlag() {
         let flag;
         do {
-            flag = flags[Math.floor(Math.random() * flags.length)];
+            flag = flags.data[Math.floor(Math.random() * flags.data.length)];
         } while (!flag.emoji); // Should not happen
         this.currentFlag = flag;
         this.attempts = 0;
