@@ -1,6 +1,15 @@
+/**
+ * @typedef Flag
+ * @property {string} emoji
+ * @property {string} code
+ * @property {string} unicode
+ * @property {string} name
+ */
+
 const {MessageEmbed} = require("discord.js");
 const Sequelize = require("sequelize");
 const config = require('../bot-config.json');
+/** @type {{emoji: string, name: string, code: string, unicode: string}[]} */
 const flags = require('../assets/flag-emojis.json');
 const moment = require('moment');
 
@@ -13,21 +22,259 @@ const MEDALS = [
     "\ud83e\udd49"
 ];
 
-let currentFlag = null;
-let attempts = 0;
-let hints = 0;
-let known = new Set();
+class ChannelState {
+    constructor() {
+        this.currentFlag = null;
+        this.attempts = 0;
+        this.hints = 0;
+        this.known = new Set();
 
-let speedRunRemainingFlags = null;
-let lastFlagTime = null;
-let lastHintTime = null;
-/** @type {module:"discord.js".Message|null} */
-let hintMessage = null;
-let hintText = null;
-const inSpeedRun = () => speedRunRemainingFlags !== null && speedRunRemainingFlags > 0;
-/** @type {Map|null} */
-let speedRunAnswers = null;
+        this.speedRunRemainingFlags = null;
+        this.lastFlagTime = null;
+        this.lastHintTime = null;
+        /** @type {module:"discord.js".Message|null} */
+        this.hintMessage = null;
+        this.hintText = null;
+        /** @type {Map|null} */
+        this.speedRunAnswers = null;
+    }
 
+    inSpeedRun() {
+        return this.speedRunRemainingFlags !== null && this.speedRunRemainingFlags > 0;
+    }
+
+    /**
+     * Replaces the current flag for a random new one
+     */
+    newFlag() {
+        let flag;
+        do {
+            flag = flags[Math.floor(Math.random() * flags.length)];
+        } while (!flag.emoji); // Should not happen
+        this.currentFlag = flag;
+        this.attempts = 0;
+        this.hints = 0;
+        this.lastFlagTime = moment();
+        this.known.clear();
+    }
+
+    /**
+     * Gets a random hint, which means it shows some new letters.
+     * This function directly adds the selected new letters to the global variable "known",
+     * so they never get repeated unless the variable gets cleared.
+     * Only alphanumerical characters are candidates to selection,
+     * the rest are shown always by default.
+     * @returns {string}
+     */
+    getRandomHint() {
+        if (!this.currentFlag) return "";
+        const letters = this.currentFlag.name.split("")
+            .map((l, i) => [l, i])
+            .filter(pair => pair[0].match(/[A-Za-z]/) && !this.known.has(pair[1]))
+            .map(pair => pair[1]);
+        let howMany = Math.round(letters.length / (5 + Math.random() * 5));
+        if (howMany === 0) howMany = 1;
+        howMany = Math.min(howMany, letters.length);
+        let count = 0;
+        while (count < howMany) {
+            const next = Math.floor(Math.random() * letters.length);
+            this.known.add(letters.splice(next, 1)[0]);
+            count++;
+        }
+        this.lastHintTime = moment();
+        return this.currentFlag.name.split("").map(
+            (v, i) => this.known.has(i) || v.match(/[^A-Za-z]/) ? v + " " : "\\_ ").join("");
+    }
+
+    /**
+     * Scores a given guess at the current flag based on the number of wrong characters per word,
+     * giving an idea of how mistaken the guess is.
+     * @param {string} guess the string we want to score as a guess for the current flag
+     * @returns {number}
+     */
+    mistakesInGuess(guess) {
+        if (!this.currentFlag) return 0;
+        guess = normalize(guess);
+        const right = normalize(this.currentFlag.name);
+        const guessWords = guess.split(" ");
+        const rightWords = right.split(" ");
+        let score = 0;
+
+        for (let j = 0; j < Math.max(guessWords.length, rightWords.length); j++) {
+            if (j >= guessWords.length) {
+                score += rightWords[j].length;
+            } else if (j >= rightWords.length) {
+                score += guessWords[j].length;
+            } else {
+                const gw = guessWords[j];
+                const rw = rightWords[j];
+                for (let i = 0; i < Math.max(gw.length, rw.length); i++) {
+                    if (rw.length <= i || gw.length <= i || rw[i] !== gw[i]) {
+                        score += 1;
+                    }
+                }
+            }
+        }
+        return score;
+    }
+
+    /**
+     * @param {module:"discord.js".TextChannel} channel
+     * @param {string} [description]
+     */
+    async sendCurrentFlag(channel, description) {
+        const embed = new MessageEmbed()
+            .setTitle(`${this.currentFlag.emoji} What does this flag represent?`)
+            .setColor(0xffffff)
+            .setDescription(description || `Use \`${config.prefix}flag country\` to guess.`);
+        await channel.send(embed);
+        await channel.send(this.currentFlag.emoji);
+    }
+
+    /**
+     * @param {Message} message
+     * @param {Bot} context
+     */
+    async speedRunMessageReception(message, context) {
+        if (message.author.bot) return;
+        if (message.content === "??" || message.content === "?") {
+            if (this.lastHintTime === null || moment().diff(this.lastHintTime, 's') >= 3) {
+                setTimeout(() => {
+                    if (this.hintMessage) {
+                        this.hintMessage.edit(this.hintText);
+                    }
+                }, 3000);
+                this.hintText = `Hint: ${this.getRandomHint()}\n`;
+                const content = this.hintText + `Hint cooldown! 3s remaining.`;
+                if (this.hintMessage) {
+                    this.hintMessage.edit(content).then();
+                } else {
+                    this.hintMessage = await message.channel.send(content);
+                }
+            } else {
+                const milis = Math.max(3000 - moment().diff(this.lastHintTime, 'milliseconds'), 0);
+                const text = `Hint cooldown! ${milis / 1000}s remaining.`;
+                if (this.hintMessage) {
+                    await this.hintMessage.edit(this.hintText + text);
+                }
+            }
+        } else if (message.content === "\u274c") {
+            this.speedRunRemainingFlags = null;
+            this.hintMessage = null;
+            this.speedRunAnswers = null;
+            this.currentFlag = null;
+            context.unlockMessageReception(message.channel);
+            const embed = new MessageEmbed()
+                .setTitle(`Speed-run cancelled!`)
+                .setColor(0xff0000)
+                .setDescription(`The current speed run has been cancelled`);
+            await message.channel.send(embed);
+        } else {
+            if (this.currentFlag == null) return;
+            const accepted = await this.flagGuess(message.channel, message.author, message.content, context, message, true);
+            if (this.currentFlag === null && accepted) {
+                this.speedRunRemainingFlags -= 1;
+                const guessTime = moment().diff(this.lastFlagTime, 'milliseconds', true);
+                let arr = this.speedRunAnswers.get(message.author.id);
+                if (arr === undefined) {
+                    arr = [guessTime];
+                } else {
+                    arr.push(guessTime);
+                }
+                this.speedRunAnswers.set(message.author.id, arr);
+                if (this.inSpeedRun()) {
+                    this.newFlag();
+                    this.hintMessage = null;
+                    await this.sendCurrentFlag(message.channel, `Remaining flags: ${this.speedRunRemainingFlags}`);
+                } else {
+                    this.speedRunRemainingFlags = null;
+                    this.hintMessage = null;
+                    /** @type {[EmbedFieldData[], number, number]}*/
+                    const fields = [];
+                    for (let [userId, answers] of this.speedRunAnswers.entries()) {
+                        const user = await context.client.users.fetch(userId);
+                        const avgTime = answers.reduce((p, c) => p + c) / answers.length;
+                        fields.push([{
+                            name: user.username,
+                            value: `Guesses: ${answers.length}\n`
+                                + `Average guess time: ${(avgTime / 1000).toFixed(2)}`,
+                            inline: true
+                        }, avgTime, answers.length]);
+                    }
+                    fields.sort((a, b) => {
+                        const val = -(a[2] - b[2]);
+                        if (val === 0) {
+                            return a[1] - b[1];
+                        } else return val;
+                    });
+                    for (let i = 0; i < MEDALS.length; i++) {
+                        if (fields[i]) fields[i][0].name = `${MEDALS[i]} ${fields[i][0].name}`
+                    }
+                    const embed = new MessageEmbed()
+                        .setTitle(`End of the speed-run!`)
+                        .setColor(0xff00ff)
+                        .setDescription(`This are the results:`)
+                        .addFields(fields.map(el => el[0]));
+                    await message.channel.send(embed);
+                    context.unlockMessageReception(message.channel);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param {module:"discord.js".TextChannel} channel
+     * @param {module:"discord.js".User} user
+     * @param {string} guess
+     * @param {Bot} context
+     * @param {Message} [reactToMessage] if present, react to the message instead of answering with a new message
+     * @param {boolean} [doNotSave]
+     * @returns {boolean}
+     */
+    async flagGuess(channel, user, guess, context, reactToMessage,
+                             doNotSave) {
+        const score = this.mistakesInGuess(guess)
+        this.attempts += 1;
+        const accepted = score === 0;
+        const flagName = this.currentFlag.name;
+        const flagEmoji = this.currentFlag.emoji;
+        if (accepted) {
+            if (!doNotSave) {
+                ScoreEntry.create({
+                    user_id: user.id,
+                    attempts: this.attempts,
+                    hints: this.hints,
+                    flag: this.currentFlag.name,
+                    score: score
+                }).then();
+            }
+            this.currentFlag = null;
+        }
+        if (!reactToMessage) {
+            const afterText = accepted ?
+                `is the flag of ${flagName}.\n\nGuessed by: ${user.username}` :
+                `is not the flag of ${guess}.\n`
+            const color = accepted ? 0x00ff00 : 0xff0000;
+            const embed = new MessageEmbed()
+                .setTitle(`${accepted ? `${RIGHT} Correct` : `${WRONG} Wrong`}!`)
+                .setColor(color)
+                .setDescription(`${flagEmoji} ${afterText}
+Mistakes: ${score}
+Attempts: ${this.attempts}
+Hints: ${this.hints}`
+                );
+            await channel.send(embed);
+        } else {
+            await reactToMessage.react(accepted ? RIGHT : WRONG);
+        }
+        return accepted;
+    }
+}
+
+/**
+ * @type {Map<string, ChannelState>}
+ */
+const channelStates = new Map();
 
 /**
  * To save the score entries into the database
@@ -48,84 +295,9 @@ function normalize(str) {
 }
 
 /**
- * Replaces the current flag for a random new one
- */
-function newFlag() {
-    let flag;
-    do {
-        flag = flags[Math.floor(Math.random() * flags.length)];
-    } while (!flag.emoji); // Should not happen
-    currentFlag = flag;
-    attempts = 0;
-    hints = 0;
-    lastFlagTime = moment();
-    known.clear();
-}
-
-/**
- * Gets a random hint, which means it shows some new letters.
- * This function directly adds the selected new letters to the global variable "known",
- * so they never get repeated unless the variable gets cleared.
- * Only alphanumerical characters are candidates to selection,
- * the rest are shown always by default.
- * @returns {string}
- */
-function getRandomHint() {
-    if (!currentFlag) return "";
-    const letters = currentFlag.name.split("")
-        .map((l, i) => [l, i])
-        .filter(pair => pair[0].match(/[A-Za-z]/) && !known.has(pair[1]))
-        .map(pair => pair[1]);
-    let howMany = Math.round(letters.length / (5 + Math.random() * 5));
-    if (howMany === 0) howMany = 1;
-    howMany = Math.min(howMany, letters.length);
-    let count = 0;
-    while (count < howMany) {
-        const next = Math.floor(Math.random() * letters.length);
-        known.add(letters.splice(next, 1)[0]);
-        count++;
-    }
-    lastHintTime = moment();
-    return currentFlag.name.split("").map(
-        (v, i) => known.has(i) || v.match(/[^A-Za-z]/) ? v + " " : "\\_ ").join("");
-}
-
-/**
- * Scores a given guess at the current flag based on the number of wrong characters per word,
- * giving an idea of how mistaken the guess is.
- * @param {string} guess the string we want to score as a guess for the current flag
- * @returns {number}
- */
-function mistakesInGuess(guess) {
-    if (!currentFlag) return 0;
-    guess = normalize(guess);
-    const right = normalize(currentFlag.name);
-    const guessWords = guess.split(" ");
-    const rightWords = right.split(" ");
-    let score = 0;
-
-    for (let j = 0; j < Math.max(guessWords.length, rightWords.length); j++) {
-        if (j >= guessWords.length) {
-            score += rightWords[j].length;
-        } else if (j >= rightWords.length) {
-            score += guessWords[j].length;
-        } else {
-            const gw = guessWords[j];
-            const rw = rightWords[j];
-            for (let i = 0; i < Math.max(gw.length, rw.length); i++) {
-                if (rw.length <= i || gw.length <= i || rw[i] !== gw[i]) {
-                    score += 1;
-                }
-            }
-        }
-    }
-    return score;
-}
-
-/**
  * Answers to the message with the stats for the mentioned users
  * @param {Message} message
- * @param {Context} context
+ * @param {Bot} context
  */
 async function answerMentionedUserStats(message, context) {
     for (let user of message.mentions.users.filter(u => !u.bot).array()) {
@@ -146,7 +318,7 @@ async function answerMentionedUserStats(message, context) {
 
 /**
  * @param {module:"discord.js".User} user
- * @param {Context} context
+ * @param {Bot} context
  * @returns {ScoreEntry | null}
  */
 async function getUserStats(user, context) {
@@ -164,7 +336,7 @@ async function getUserStats(user, context) {
 
 /**
  * @param {Message} message
- * @param {Context} context
+ * @param {Bot} context
  * @returns {Promise<void>}
  */
 async function answerTopUserStats(message, context) {
@@ -202,155 +374,17 @@ async function answerTopUserStats(message, context) {
 }
 
 /**
- * @param {module:"discord.js".TextChannel} channel
- * @param {string} [description]
+ * @param {module:"discord.js".Message} message
+ * @return {ChannelState}
  */
-async function sendCurrentFlag(channel, description) {
-    const embed = new MessageEmbed()
-        .setTitle(`${currentFlag.emoji} What does this flag represent?`)
-        .setColor(0xffffff)
-        .setDescription(description || `Use \`${config.prefix}flag country\` to guess.`);
-    await channel.send(embed);
-    await channel.send(currentFlag.emoji);
-}
-
-/**
- * @param {Message} message
- * @param {Context} context
- */
-async function speedRunMessageReception(message, context) {
-    if (message.author.bot) return;
-    if (message.content === "??" || message.content === "?") {
-        if (lastHintTime === null || moment().diff(lastHintTime, 's') >= 3) {
-            setTimeout(() => {
-                if (hintMessage) {
-                    hintMessage.edit(hintText);
-                }
-            }, 3000);
-            hintText = `Hint: ${getRandomHint()}\n`;
-            const content = hintText + `Hint cooldown! 3s remaining.`;
-            if (hintMessage) {
-                hintMessage.edit(content).then();
-            } else {
-                hintMessage = await message.channel.send(content);
-            }
-        } else {
-            const milis = Math.max(3000 - moment().diff(lastHintTime, 'milliseconds'), 0);
-            const text = `Hint cooldown! ${milis / 1000}s remaining.`;
-            if (hintMessage) {
-                await hintMessage.edit(hintText + text);
-            }
-        }
-    } else if (message.content === "\u274c") {
-        speedRunRemainingFlags = null;
-        hintMessage = null;
-        speedRunAnswers = null;
-        currentFlag = null;
-        context.unlockMessageReception();
-        const embed = new MessageEmbed()
-            .setTitle(`Speed-run cancelled!`)
-            .setColor(0xff0000)
-            .setDescription(`The current speed run has been cancelled`);
-        await message.channel.send(embed);
+function getOrGenerateState(message) {
+    if (channelStates.has(message.channel.id)) {
+        return channelStates.get(message.channel.id);
     } else {
-        if (currentFlag == null) return;
-        const accepted = await flagGuess(message.channel, message.author, message.content, context, message, true);
-        if (currentFlag === null && accepted) {
-            speedRunRemainingFlags -= 1;
-            const guessTime = moment().diff(lastFlagTime, 'milliseconds', true);
-            let arr = speedRunAnswers.get(message.author.id);
-            if (arr === undefined) {
-                arr = [guessTime];
-            } else {
-                arr.push(guessTime);
-            }
-            speedRunAnswers.set(message.author.id, arr);
-            if (inSpeedRun()) {
-                newFlag();
-                hintMessage = null;
-                await sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`);
-            } else {
-                speedRunRemainingFlags = null;
-                hintMessage = null;
-                /** @type {[EmbedFieldData[], number, number]}*/
-                const fields = [];
-                for (let [userId, answers] of speedRunAnswers.entries()) {
-                    const user = await context.client.users.fetch(userId);
-                    const avgTime = answers.reduce((p, c) => p + c) / answers.length;
-                    fields.push([{
-                        name: user.username,
-                        value: `Guesses: ${answers.length}\n`
-                            + `Average guess time: ${(avgTime / 1000).toFixed(2)}`,
-                        inline: true
-                    }, avgTime, answers.length]);
-                }
-                fields.sort((a, b) => {
-                    const val = -(a[2] - b[2]);
-                    if (val === 0) {
-                        return a[1] - b[1];
-                    } else return val;
-                });
-                for (let i = 0; i < MEDALS.length; i++) {
-                    if (fields[i]) fields[i][0].name = `${MEDALS[i]} ${fields[i][0].name}`
-                }
-                const embed = new MessageEmbed()
-                    .setTitle(`End of the speed-run!`)
-                    .setColor(0xff00ff)
-                    .setDescription(`This are the results:`)
-                    .addFields(fields.map(el => el[0]));
-                await message.channel.send(embed);
-                context.unlockMessageReception();
-            }
-        }
+        const state = new ChannelState();
+        channelStates.set(message.channel.id, state);
+        return state;
     }
-}
-
-/**
- * @param {module:"discord.js".TextChannel} channel
- * @param {module:"discord.js".User} user
- * @param {string} guess
- * @param {Context} context
- * @param {Message} [reactToMessage] if present, react to the message instead of answering with a new message
- * @param {boolean} [doNotSave]
- * @returns {boolean}
- */
-async function flagGuess(channel, user, guess, context, reactToMessage,
-                         doNotSave) {
-    const score = mistakesInGuess(guess)
-    attempts += 1;
-    const accepted = score === 0;
-    const flagName = currentFlag.name;
-    const flagEmoji = currentFlag.emoji;
-    if (accepted) {
-        if (!doNotSave) {
-            ScoreEntry.create({
-                user_id: user.id,
-                attempts: attempts,
-                hints: hints,
-                flag: currentFlag.name,
-                score: score
-            }).then();
-        }
-        currentFlag = null;
-    }
-    if (!reactToMessage) {
-        const afterText = accepted ?
-            `is the flag of ${flagName}.\n\nGuessed by: ${user.username}` :
-            `is not the flag of ${guess}.\n`
-        const color = accepted ? 0x00ff00 : 0xff0000;
-        const embed = new MessageEmbed()
-            .setTitle(`${accepted ? `${RIGHT} Correct` : `${WRONG} Wrong`}!`)
-            .setColor(color)
-            .setDescription(`${flagEmoji} ${afterText}
-Mistakes: ${score}
-Attempts: ${attempts}
-Hints: ${hints}`
-            );
-        await channel.send(embed);
-    } else {
-        await reactToMessage.react(accepted ? RIGHT : WRONG);
-    }
-    return accepted;
 }
 
 module.exports = {
@@ -366,22 +400,34 @@ module.exports = {
         {
             name: 'flag',
             description: 'Gives a random flag to guess',
+            /**
+             * @param {module:"discord.js".Message} message
+             * @param {string[]} args
+             * @param {Bot} context
+             */
             execute(message, args, context) {
-                if (args.length === 0 || currentFlag == null) {
-                    if (currentFlag == null) {
-                        newFlag();
+                const state = getOrGenerateState(message);
+                if (args.length === 0 || state.currentFlag == null) {
+                    if (state.currentFlag == null) {
+                        state.newFlag();
                     }
-                    sendCurrentFlag(message.channel).then();
+                    state.sendCurrentFlag(message.channel).then();
                 } else {
-                    flagGuess(message.channel, message.author, args.join(" "), context).then();
+                    state.flagGuess(message.channel, message.author, args.join(" "), context).then();
                 }
             }
         },
         {
             name: 'flag-speed',
             description: 'Initiates a flag speedrun',
+            /**
+             * @param {module:"discord.js".Message} message
+             * @param {string[]} args
+             * @param {Bot} context
+             */
             execute(message, args, context) {
-                if (currentFlag) {
+                const state = getOrGenerateState(message);
+                if (state.currentFlag) {
                     message.reply("you can't start a speedrun until you guess the current flag. Now go to your room.");
                     return;
                 }
@@ -389,16 +435,16 @@ module.exports = {
                     message.reply(`use \`${config.prefix}flag-speed x\`, where x is the number of flags, you tard.`);
                     return;
                 }
-                speedRunRemainingFlags = parseInt(args[0], 10);
-                speedRunAnswers = new Map();
+                state.speedRunRemainingFlags = parseInt(args[0], 10);
+                state.speedRunAnswers = new Map();
                 const embed = new MessageEmbed()
                     .setTitle(`\u23f2\ufe0f Speed-run started!`)
                     .setColor(0x0000ff)
                     .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
                 message.channel.send(embed);
-                newFlag();
-                sendCurrentFlag(message.channel, `Remaining flags: ${speedRunRemainingFlags}`).then();
-                context.lockMessageReception(speedRunMessageReception);
+                state.newFlag();
+                state.sendCurrentFlag(message.channel, `Remaining flags: ${this.speedRunRemainingFlags}`).then();
+                context.lockMessageReception(message.channel, state.speedRunMessageReception.bind(state));
             }
         },
         {
@@ -407,16 +453,17 @@ module.exports = {
             /**
              * @param {Message} message
              * @param {string[]} args
-             * @param {Context} context
+             * @param {Bot} context
              */
             execute(message, args, context) {
-                if (currentFlag === null) {
+                const state = getOrGenerateState(message);
+                if (state.currentFlag === null) {
                     message.reply(`use \`${config.prefix}flag\` to get a random flag to guess, you lil piece of shit.`);
                     return;
                 }
-                const hint = getRandomHint();
-                hints += 1;
-                message.channel.send(`The answer is  ${hint} (${hints} total hints)`);
+                const hint = state.getRandomHint();
+                state.hints += 1;
+                message.channel.send(`The answer is  ${hint} (${state.hints} total hints)`);
             }
         },
         {
@@ -425,7 +472,7 @@ module.exports = {
             /**
              * @param {Message} message
              * @param {string[]} args
-             * @param {Context} context
+             * @param {Bot} context
              */
             async execute(message, args, context) {
                 if (message.mentions.users.size > 0) {
