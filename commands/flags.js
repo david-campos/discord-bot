@@ -15,7 +15,9 @@ const moment = require('moment');
 const WRONG = '\u274c'
 const RIGHT = '\u2705'
 
-const EXPERT_RUN_SECS = 5;
+const EXPERT_RUN_MILLIS_MIN = 5000;
+const EXPERT_RUN_MILLIS_EXTRA = 500;
+const EXPERT_RUN_MILLIS_PER_CHAR = 300;
 const EXPERT_MAX_FAILURES = 10;
 
 const MEDALS = [
@@ -318,19 +320,23 @@ Hints: ${this.hints}`
 
         const displayName = message.member ? message.member.displayName : message.author.username;
 
+        const millis = Math.max(EXPERT_RUN_MILLIS_MIN,
+            EXPERT_RUN_MILLIS_EXTRA + EXPERT_RUN_MILLIS_PER_CHAR * this.currentFlag.name.length);
+
         const embed = new MessageEmbed()
             .setTitle(`\ud83d\udc53 ${displayName} has started an **expert run**!`)
             .setColor(0xf040c0)
             .setDescription(
                 `\u26a0 During the run, I will only be listening to **${message.author.username}**.\n\n` +
-                `\u23f2 You have ${EXPERT_RUN_SECS} to answer each flag (it resets on mistakes).\n` +
+                `\u23f2 You have a limited time to answer each flag (it resets on mistakes).\n` +
                 `\u2753 There is no option for hints.\n` +
                 `\ud83d\udea7 You can only make ${EXPERT_MAX_FAILURES} mistakes in total.\n`
             );
         await message.channel.send(embed);
         await message.channel.send(this.currentFlag.emoji);
         await message.channel.send(
-            `*Remaining flags: ${this.expertRunPool.length + 1}*\n*Failures: **${this.expertRunFailures}***`);
+            `*Available time: **${Math.round(millis/100)/10}s***\n`
+            + `*Remaining flags: ${this.expertRunPool.length + 1}*\n*Failures: **${this.expertRunFailures}***`);
         this._expertResetTimeout();
     }
 
@@ -338,7 +344,8 @@ Hints: ${this.hints}`
         clearTimeout(this.expertRunTimeout);
         this.expertRunTimeout = setTimeout(
             this._expertRunOnTimedOut.bind(this),
-            EXPERT_RUN_SECS * 1000);
+            Math.max(EXPERT_RUN_MILLIS_MIN,
+                EXPERT_RUN_MILLIS_EXTRA + EXPERT_RUN_MILLIS_PER_CHAR * this.currentFlag.name.length));
     }
 
     _expertRunOnTimedOut() {
@@ -346,6 +353,7 @@ Hints: ${this.hints}`
         if (!channel)
             throw new Error('Expert run timeout but channel not in cache!');
         this.expertRunUserId = null;
+        const name = this.currentFlag.name;
         this.currentFlag = null;
         this.bot.unlockMessageReception(channel);
 
@@ -353,7 +361,8 @@ Hints: ${this.hints}`
             .setTitle(`${WRONG} Expert run failed!`)
             .setColor(0xff0000)
             .setDescription(
-                `\u23f2 You ran out of time to answer the flag, next time remember you only have ${EXPERT_RUN_SECS} seconds!\n` +
+                `\u23f2 You ran out of time to answer the flag!\n` +
+                `The last flag was: ${name}\n` +
                 this._expertAnsweredFlagsText()
             );
         channel.send(embed);
@@ -382,8 +391,11 @@ Hints: ${this.hints}`
         if (accepted) {
             if (this.expertRunPool.length > 0) {
                 this.newFlag(this.expertRunPool);
+                const millis = Math.max(EXPERT_RUN_MILLIS_MIN,
+                    EXPERT_RUN_MILLIS_EXTRA + EXPERT_RUN_MILLIS_PER_CHAR * this.currentFlag.name.length);
                 await message.channel.send(this.currentFlag.emoji);
                 await message.channel.send(
+                    `*Available time: **${Math.round(millis/100)/10}s***\n` +
                     `*Remaining flags: ${this.expertRunPool.length + 1}*\n*Failures: **${this.expertRunFailures}***`);
                 this._expertResetTimeout();
             } else {
@@ -405,6 +417,7 @@ Hints: ${this.hints}`
             this.expertRunFailures += 1;
             if (this.expertRunFailures >= EXPERT_MAX_FAILURES) {
                 this.expertRunUserId = null;
+                const name = this.currentFlag.name;
                 this.currentFlag = null;
                 this.bot.unlockMessageReception(message.channel);
 
@@ -413,6 +426,7 @@ Hints: ${this.hints}`
                     .setColor(0xff0000)
                     .setDescription(
                         `You made ${this.expertRunFailures} mistakes!\n` +
+                        `The last flag was: ${name}\n` +
                         this._expertAnsweredFlagsText()
                     );
                 message.channel.send(embed).then();
