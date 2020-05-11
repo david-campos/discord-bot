@@ -1,4 +1,5 @@
 const axios = require('axios');
+const moment = require('moment');
 const {MessageEmbed} = require('discord.js');
 const emojiFlags = require('country-flag-emoji');
 
@@ -32,7 +33,8 @@ module.exports = {
                     const holiday = response.data[i];
                     const embed = new MessageEmbed()
                         .setTitle(`🎉 ${holiday.localName} (${holiday.name})`)
-                        .setDescription(`Festivo en ${emojiFlags.get(holiday.countryCode).emoji}`)
+                        .setDescription(`${moment(holiday.date, "YYYY-MM-DD").format('LL')}, ` +
+                            `festivo en ${emojiFlags.get(holiday.countryCode).emoji}`)
                     await message.channel.send(embed).then();
                 }
             } catch (err) {
