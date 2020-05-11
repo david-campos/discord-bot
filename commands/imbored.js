@@ -47,6 +47,9 @@ module.exports = {
                         `Accessibility: ${ACCESSIBILITY[accIndex]}\n` +
                         `Participants: ${response.data.participants}`
                     );
+                if (response.data.link) {
+                    embed.setURL(response.data.link);
+                }
                 message.channel.send(embed).then();
             } catch (err) {
                 message.reply('lo siento, pero no hay zorritos hoy (no mayores que tú).')
