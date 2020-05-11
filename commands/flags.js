@@ -9,7 +9,7 @@
 const {MessageEmbed} = require("discord.js");
 const Sequelize = require("sequelize");
 const config = require('../bot-config.json');
-const flags = require('emoji-flags');
+const flags = require('country-flag-emoji');
 const moment = require('moment');
 
 const WRONG = '\u274c'
@@ -65,11 +65,11 @@ class ChannelState {
     /**
      * Replaces the current flag for a random new one
      * @param {Flag[]} [pool] - flag of pools to take one from, if undefined it will pick one
-     * at random from flags.data. Notice if you pass a pool in, the selected flag will be popped
+     * at random from flags.list. Notice if you pass a pool in, the selected flag will be popped
      * from the pool.
      */
     newFlag(pool) {
-        const flagArray = pool ? pool : flags.data;
+        const flagArray = pool ? pool : flags.list;
         let flag;
         let index = Math.floor(Math.random() * flagArray.length) - 1; //  we will add one at the start of the loop
         do {
@@ -311,7 +311,7 @@ Hints: ${this.hints}`
             throw new Error('you must guess the current flag before starting an expert run.');
         }
         this.expertRunUserId = message.author.id;
-        this.expertRunPool = flags.data.slice(0); // clone of all the flags
+        this.expertRunPool = flags.list.slice(0); // clone of all the flags
         this.expertRunFailures = 0;
         this.newFlag(this.expertRunPool);
         context.lockMessageReception(message.channel, this._expertRunMessageReception.bind(this));
@@ -360,8 +360,8 @@ Hints: ${this.hints}`
     }
 
     _expertAnsweredFlagsText() {
-        const answered = flags.data.length - this.expertRunPool.length - 1; // last one not answered, so -1
-        const percentage = Math.round(answered / flags.data.length * 100);
+        const answered = flags.list.length - this.expertRunPool.length - 1; // last one not answered, so -1
+        const percentage = Math.round(answered / flags.list.length * 100);
         return `Total answered flags: ${answered} (${percentage}%)`;
     }
 
