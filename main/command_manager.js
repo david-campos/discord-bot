@@ -10,6 +10,8 @@ const fs = require('fs');
 /**
  * @typedef Command
  * @property {ExecuteCallback} execute
+ * @property {string} name
+ * @property {string} description
  */
 
 class CommandManager {
@@ -55,6 +57,13 @@ class CommandManager {
             }
             console.log(`\tLoaded commands ${definition.commands.map(cmd => `"${cmd.name}"`).join(', ')}`);
         }
+    }
+
+    /**
+     * @returns {Command[]}
+     */
+    getCommandList() {
+        return this._commands.array();
     }
 }
 

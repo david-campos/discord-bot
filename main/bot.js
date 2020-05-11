@@ -117,6 +117,13 @@ class Bot {
      unlockMessageReception(channel) {
         this._receptionLock.unlockMessageReception(channel);
     }
+
+    /**
+     * @returns {Command[]}
+     */
+    getCommandList() {
+         return this._commandMgr.getCommandList();
+    }
 }
 
 module.exports = {Bot}
