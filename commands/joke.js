@@ -1,17 +1,4 @@
 const axios = require('axios');
-const {MessageEmbed} = require('discord.js');
-
-const TYPES = {
-    "education": "\ud83c\udf93",
-    "recreational": "\ud83d\udcfa",
-    "social": "\ud83d\ude42",
-    "diy": "\ud83d\udee0",
-    "charity": "\ud83e\udd1d",
-    "cooking": "\ud83c\udf73",
-    "relaxation": "\u2668",
-    "music": "\ud83c\udfb6",
-    "busywork": "\u23f3"
-};
 
 module.exports = {
     commands: [{
