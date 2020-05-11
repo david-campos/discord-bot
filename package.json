@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "axios": "^0.19.2",
     "country-flag-emoji": "^1.0.3",
     "discord.js": "^12.2.0",
     "moment": "^2.25.3"
