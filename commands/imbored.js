@@ -52,7 +52,7 @@ module.exports = {
                 }
                 message.channel.send(embed).then();
             } catch (err) {
-                message.reply('lo siento, pero no hay zorritos hoy (no mayores que tú).')
+                message.reply('lo siento, no sé qué puedes hacer.')
             }
         }
     }]
