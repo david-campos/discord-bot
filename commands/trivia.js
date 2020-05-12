@@ -7,6 +7,12 @@ const DIFFICULTY_EMOJI = {
     "hard": "\ud83e\udd2f"
 };
 
+const MEDALS = [
+    "\ud83e\udd47",
+    "\ud83e\udd48",
+    "\ud83e\udd49"
+];
+
 const DIFFICULTY_COLORS = {
     "easy": 0x00ff00,
     "medium": 0xffff00,
@@ -52,12 +58,12 @@ class Question {
         return new MessageEmbed()
             .setTitle(DIFFICULTY_EMOJI[this.difficulty] + ' ' + this.category)
             .setColor(DIFFICULTY_COLORS[this.difficulty])
-            .setDescription(`${this.question}`)
-            .addFields(...this.answers.map((answer, index) => ({
-                name: `${LETTER_EMOJI_PRE + String.fromCharCode(A_EMOJI_BASE + index)}`,
-                value: answer,
-                inline: true
-            })));
+            .setDescription(
+                `**${this.question}**\n\n`
+                + this.answers.map((answer, index) =>
+                    `${LETTER_EMOJI_PRE + String.fromCharCode(A_EMOJI_BASE + index)}  ${answer}`)
+                    .join("\n")
+            );
     }
 }
 
@@ -75,6 +81,7 @@ class QuestionGame {
         this.participants = [author];
         this.turn = 0;
         this.author = author;
+        /** @type {{player: number, correct: boolean}[]} */
         this.answers = [];
         this.started = false;
         this.finished = false;
@@ -112,7 +119,10 @@ class QuestionGame {
         if (!this.started || this.finished || !this.currentQuestion) return; // Ignore
         if (!message.author || message.author.bot) return;
         const answer = message.content.trim().toLowerCase();
-        if (answer.length !== 1) return; // Not an answer
+        if (answer.length !== 1) {
+            if (answer === "\ud83d\udd1a") this.finishGame(`Game cancelled by <@${message.author.id}>`);
+            return;
+        }
         if (answer.charCodeAt(0) < "a".charCodeAt(0)
             || answer.charCodeAt(0) > "a".charCodeAt(0) + this.currentQuestion.answers.length - 1) return; // Not an answer
         const foundIndex = this.participants.findIndex(participant => participant.id === message.author.id);
@@ -121,16 +131,40 @@ class QuestionGame {
         this.answers.push({player: foundIndex, correct: correct});
         message.react(correct ? RIGHT : WRONG).then();
         if (this.answers.length < this.numQuestions) {
-            this.turn = this.turn + 1 % this.participants.length;
+            this.turn = (this.turn + 1) % this.participants.length;
             this.nextQuestion().then(() => message.channel.send(this.getEmbed()));
         } else {
-            this.finishGame();
+            this.finishGame(`You, cheeky smarties, have answered all the questions!`);
         }
     }
 
-    finishGame() {
+    /**
+     * @param {string} reason
+     */
+    finishGame(reason) {
         this.finished = true;
         this.channelState.unlockChannel();
+        this.channelState.onGoingGame = null; // Bye bye!
+        const fields = this.participants
+            .map((p, pIdx) => {
+                const answered = this.answers.filter(a => a.player === pIdx);
+                const right = answered.filter(a => a.correct).length;
+                const wrong = answered.length - right;
+                return [{
+                    name: p.username,
+                    value: `${RIGHT} Right: **${right}**. ${WRONG} Wrong: **${wrong}**`,
+                    inline: true
+                }, right]
+            })
+            .sort((a, b) => -(a[1] - b[1]))
+            .map(arr => arr[0]);
+        // Add medals
+        fields.slice(0, MEDALS.length).forEach((f, i) => f.name = `${MEDALS[i]} ${f.name}`);
+        const embed = new MessageEmbed()
+            .setTitle('\ud83c\udfc1 Game finished!')
+            .setDescription(reason)
+            .addFields(...fields);
+        this.channelState.channel.send(embed).then();
     }
 
     async nextQuestion() {
@@ -143,6 +177,7 @@ class QuestionGame {
         if (!this.currentQuestion) return null;
         const embed = this.currentQuestion.getEmbed();
         const player = this.participants[this.turn];
+        embed.setTitle(`Question ${this.answers.length + 1}/${this.numQuestions}: ${embed.title}`);
         embed.setFooter(player.username, player.displayAvatarURL());
         return embed;
     }
@@ -279,8 +314,13 @@ module.exports = {
             if (state.onGoingGame) {
                 try {
                     if (state.onGoingGame.author.id === message.author.id) {
-                        state.onGoingGame.start()
-                            .then(() => message.channel.send(state.onGoingGame.getEmbed()));
+                        if (args.length > 0 && args[0].toLowerCase() === "cancel") {
+                            state.onGoingGame = null;
+                            message.reply('trivia game cancelled.');
+                        } else {
+                            state.onGoingGame.start()
+                                .then(() => message.channel.send(state.onGoingGame.getEmbed()));
+                        }
                     } else {
                         const added = state.onGoingGame.toggleParticipant(message.author);
                         await message.react(added ? RIGHT : WRONG);
@@ -295,6 +335,16 @@ module.exports = {
                 }
                 state.questionsPerBatch = questions;
                 state.onGoingGame = new QuestionGame(state, message.author, questions);
+                const embed = new MessageEmbed()
+                    .setTitle('\ud83d\udcda Trivia game!')
+                    .setDescription(
+                        `${message.author.username} has proposed a trivia game with ${questions} questions!\n`
+                        + `**Send \`${context.config.prefix}trivia\` to join / leave.**\n`
+                        + `*The game will start when ${message.author.username} `
+                        + `introduces \`${context.config.prefix}trivia\` again.*\n\n`
+                        + `<@${message.author.id}>, send \`${context.config.prefix}trivia cancel\` to cancel the game.`
+                    )
+                message.channel.send(embed).then();
             }
         }
     }]
