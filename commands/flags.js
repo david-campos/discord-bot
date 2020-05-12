@@ -342,6 +342,7 @@ Hints: ${this.hints}`
 
     _expertResetTimeout() {
         clearTimeout(this.expertRunTimeout);
+        if (this.currentFlag == null) return;
         this.expertRunTimeout = setTimeout(
             this._expertRunOnTimedOut.bind(this),
             Math.max(EXPERT_RUN_MILLIS_MIN,
