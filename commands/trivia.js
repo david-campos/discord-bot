@@ -128,8 +128,11 @@ class QuestionGame {
         const foundIndex = this.participants.findIndex(participant => participant.id === message.author.id);
         if (foundIndex !== this.turn) return; // Not a participant or current turn
         const correct = this.currentQuestion.isCorrect(answer);
+        const rightIndex = this.currentQuestion.rightAnswerIndex;
         this.answers.push({player: foundIndex, correct: correct});
-        message.react(correct ? RIGHT : WRONG).then();
+        message.react(correct ? RIGHT : WRONG).then(() => message.react(
+            LETTER_EMOJI_PRE + String.fromCharCode(A_EMOJI_BASE + rightIndex)
+        ));
         if (this.answers.length < this.numQuestions) {
             this.turn = (this.turn + 1) % this.participants.length;
             this.nextQuestion().then(() => message.channel.send(this.getEmbed()));
