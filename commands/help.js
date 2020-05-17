@@ -11,7 +11,9 @@ module.exports = {
          */
         async execute(message, args, context) {
             try {
-                const fields = context.getCommandList().map(cmd => ({
+                const fields = context.getCommandList()
+                    .filter(cmd => !cmd.hidden)
+                    .map(cmd => ({
                     name: context.config.prefix + cmd.name,
                     value: cmd.description
                 }));

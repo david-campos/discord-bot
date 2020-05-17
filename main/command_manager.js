@@ -12,6 +12,7 @@ const fs = require('fs');
  * @property {ExecuteCallback} execute
  * @property {string} name
  * @property {string} description
+ * @property {boolean} [hidden]
  */
 
 class CommandManager {
