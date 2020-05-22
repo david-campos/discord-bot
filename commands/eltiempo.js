@@ -12,7 +12,7 @@ module.exports = {
             name: 'locale', optional: true,
             description: 'código del locale a emplear para formatear la fecha y hora',
             format: `uno de estos: ${LOCALES.join(', ')}`,
-            defaultValue: moment.locale
+            defaultValue: moment.locale()
         }],
         /**
          * @param {module:"discord.js".Message} message
