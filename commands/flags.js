@@ -8,12 +8,10 @@
 
 const {MessageEmbed} = require("discord.js");
 const Sequelize = require("sequelize");
-const {GuessingController} = require('../guess_quizz/guess_quizz');
+const {GuessingController, DEFAULT_SPEEDRUN_LENGTH} = require('../guess_quizz/guess_quizz');
 const config = require('../bot-config.json');
 const flags = require('country-flag-emoji');
-const {MEDALS} = require("../guess_quizz/emojis");
-const {WRONG} = require("../guess_quizz/emojis");
-const {RIGHT} = require("../guess_quizz/emojis");
+const {MEDALS, WRONG, RIGHT} = require("../guess_quizz/emojis");
 
 /**
  * @extends GuessingController<Flag>
@@ -180,11 +178,18 @@ module.exports = {
         {
             name: 'flag',
             description: 'Gives a random flag to guess',
+            usage: [
+                {name: 'guess', description: 'country you guess the flag belongs to', optional: true}
+            ],
             execute: controller.cmdBasic.bind(controller)
         },
         {
             name: 'flag-speed',
             description: 'Initiates a flag speedrun',
+            usage: [
+                {name: 'N', description: 'number of flags in the speedrun', optional: true, format: 'positive integer',
+                    defaultValue: DEFAULT_SPEEDRUN_LENGTH}
+            ],
             execute: controller.cmdSpeedRunStart.bind(controller)
         },
         {

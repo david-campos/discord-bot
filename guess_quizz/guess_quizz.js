@@ -4,6 +4,8 @@ const {WRONG, RIGHT} = require("./emojis");
 const {MessageEmbed} = require('discord.js');
 const {BaseChannelState, ChannelStateManager} = require('../main/channel_state');
 
+const DEFAULT_SPEEDRUN_LENGTH = 17;
+
 /**
  * Normalizes the string so it can be compared
  * @param str
@@ -170,7 +172,7 @@ class GuessingController {
                 .then();
             return;
         }
-        const items = args.length > 0 ? parseInt(args[0], 10) : 17;
+        const items = args.length > 0 ? parseInt(args[0], 10) : DEFAULT_SPEEDRUN_LENGTH;
         const speedRun = new GuessSpeedRun(state, items, this.speedRunHintCooldown);
         const embed = new MessageEmbed()
             .setTitle(`\u23f2\ufe0f Speed-run started!`)
@@ -657,5 +659,6 @@ module.exports = {
     GuessingChannel,
     GuessCase,
     GuessSpeedRun,
-    GuessExpertRun
+    GuessExpertRun,
+    DEFAULT_SPEEDRUN_LENGTH
 };

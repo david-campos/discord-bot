@@ -7,11 +7,21 @@ const fs = require('fs');
  * @param {string[]} args
  * @param {Bot} context
  */
+
+/**
+ * @typedef CommandArgumentDefinition
+ * @property {string} name - name to display for the property
+ * @property {string} description - description for the property
+ * @property {string} [format] - format description for the argument
+ * @property {boolean} [optional] - whether the command is optional, by default we should assume it is not
+ * @property {string} [defaultValue] - default value for the property if omitted
+ */
 /**
  * @typedef Command
  * @property {ExecuteCallback} execute
  * @property {string} name
  * @property {string} description
+ * @property {CommandArgumentDefinition[]} [usage]
  * @property {boolean} [hidden]
  */
 
