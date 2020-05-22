@@ -169,7 +169,7 @@ module.exports = {
 	commands: [
 	{
 		name: '3r',
-		description: '3 en raya',
+		shortDescription: '3 en raya',
 		execute(message, args, context) {
 			if (!message.author) return;
 			const lowArgs = args.map(arg => arg.toLowerCase());

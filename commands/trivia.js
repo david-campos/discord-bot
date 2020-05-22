@@ -294,6 +294,7 @@ function getOrGenerateState(message, context) {
 module.exports = {
     commands: [{
         name: 'trivia',
+        shortDescription: 'Juego de preguntas (en inglés)',
         description: 'Creates a new game of trivia questions (using opentdb.com), '
             + 'joins the current proposed game or starts the game.',
         usage: [{

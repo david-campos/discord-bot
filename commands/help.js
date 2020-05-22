@@ -44,7 +44,18 @@ function usageDescription(command) {
 module.exports = {
     commands: [{
         name: 'help',
-        description: 'Lista los comandos',
+        shortDescription: 'Ayuda',
+        description: 'Muestra una descripción de todos los comandos del bot.',
+        usage: [{
+            group: 'choice', args: [
+                {
+                    name: 'pag', description: 'indica la página de ayuda que quieres ver', optional: true,
+                    format: 'entero mayor que 1', defaultValue: '1'
+                },
+                {name: 'comando', description: 'indica un comando para el que obtener una descripción detallada',
+                    format: 'nombre del comando'}
+            ]
+        }],
         /**
          * @param {module:"discord.js".Message} message
          * @param {string[]} args

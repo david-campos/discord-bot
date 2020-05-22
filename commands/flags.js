@@ -177,6 +177,7 @@ module.exports = {
     commands: [
         {
             name: 'flag',
+            shortDescription: 'Acierta la bandera (en inglés)',
             description: 'Gives a random flag to guess or guesses the current flag obtained this way',
             usage: [
                 {name: 'guess', description: 'country you guess the flag belongs to', optional: true}
@@ -185,7 +186,8 @@ module.exports = {
         },
         {
             name: 'flag-speed',
-            description: 'Initiates a flag speedrun',
+            shortDescription: 'Speed-run de banderas (en inglés)',
+            description: 'Initiates a flag speedrun. During the speedrun anyone can answer, flags will come one after the other, the first person to answer the correct country for the flag will get the point.',
             usage: [
                 {name: 'N', description: 'number of flags in the speedrun', optional: true, format: 'positive integer',
                     defaultValue: DEFAULT_SPEEDRUN_LENGTH}
@@ -194,12 +196,14 @@ module.exports = {
         },
         {
             name: 'flag-hint',
+            shortDescription: 'Pista de banderas (en inglés)',
             description: 'Gives a hint for the current flag guess',
             usage: [],
             execute: controller.cmdHint.bind(controller)
         },
         {
             name: 'flag-expert',
+            shortDescription: 'Expert-run de banderas (en inglés)',
             description: 'Start an expert run, a challenge not made for the faint of heart!',
             usage: [],
             execute: controller.cmdExpertRunStart.bind(controller)
@@ -210,6 +214,7 @@ module.exports = {
                 name: '...@someone', description: 'mention users to see only the specified users stats',
                 optional: true, format: 'discord mention'
             }],
+            shortDescription: 'Puntuaciones de banderas (en inglés)',
             description: "Lists flag scores. By default it lists the top user stats, unless other users are mentioned in the message.",
             /**
              * @param {Message} message

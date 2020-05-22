@@ -20,6 +20,7 @@ const ACCESSIBILITY = [
 module.exports = {
     commands: [{
         name: 'imbored',
+        shortDescription: 'Cosas que hacer (en inglés)',
         description: 'Devuelve una actividad aleatoria para hacer (en inglés, cortesía de boredapi.com)',
         /**
          * @param {module:"discord.js".Message} message

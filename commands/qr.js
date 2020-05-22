@@ -3,6 +3,7 @@ const {MessageEmbed} = require('discord.js');
 module.exports = {
     commands: [{
         name: 'qr',
+        shortDescription: 'Creador de QRs',
         description: 'Devuelve la URL indicada como QR (cortesía de qrtag.net)',
         /**
          * @param {module:"discord.js".Message} message

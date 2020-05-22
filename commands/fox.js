@@ -4,6 +4,7 @@ const {MessageEmbed} = require('discord.js');
 module.exports = {
     commands: [{
         name: 'zorrito',
+        shortDescription: 'Zorrito aleatorio',
         description: 'Devuelve un zorrito aleatorio (cortesía de randomfox.cat)',
         /**
          * @param {module:"discord.js".Message} message

@@ -6,7 +6,20 @@ const emojiFlags = require('country-flag-emoji');
 module.exports = {
     commands: [{
         name: 'festivos',
+        shortDescription: 'Próximos festivos',
         description: 'Devuelve los próximos festivos a nivel mundial o para el país con el código indicado (cortesía de date.nager.at)',
+        usage: [{
+            group: 'choice', args: [
+                {
+                    name: 'N',
+                    description: 'número de festivos a mostrar',
+                    format: 'entero mayor que cero',
+                    optional: true,
+                    defaultValue: '1'
+                },
+                {name: 'countryCode', description: 'código de país', format: 'dos letras'}
+            ]
+        }],
         /**
          * @param {module:"discord.js".Message} message
          * @param {string[]} args

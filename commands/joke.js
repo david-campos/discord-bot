@@ -3,6 +3,7 @@ const axios = require('axios');
 module.exports = {
     commands: [{
         name: 'joke',
+        shortDescription: 'Chiste (en inglés)',
         description: 'Cuenta un chiste (en inglés, cortesía de official-joke-api.appspot.com)',
         /**
          * @param {module:"discord.js".Message} message
