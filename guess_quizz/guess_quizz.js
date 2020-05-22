@@ -45,6 +45,16 @@ class GuessingController {
     }
 
     /**
+     * Can be overwritten by children to modify the default behaviour when sending a case
+     * @param {DiscordChannel} channel
+     * @param {GuessCase} guessCase
+     * @param {string} [description] optional description for the embed to include
+     */
+    async sendCase(channel, guessCase, description) {
+        channel.send(this.caseToEmbed(guessCase, description));
+    }
+
+    /**
      * @abstract Implement to give the solution for a given item
      * @param {Item} item
      * @return {string}
@@ -85,10 +95,10 @@ class GuessingController {
     /**
      * @abstract Implement to give an embed for when someone does not guess an item
      * @param {DiscordMessage} message
-     * @param {GuessCase<Item>} gruessingCase
+     * @param {GuessCase<Item>} guessingCase
      * @return {module:"discord.js".MessageEmbed}
      */
-    embedForWrongGuess(message, gruessingCase) {
+    embedForWrongGuess(message, guessingCase) {
         throw new Error('GuessingController::embedForWrongGuess: method must be overrided!');
     }
 
@@ -111,7 +121,7 @@ class GuessingController {
         const currentCase = state.currentCase;
         if (args.length === 0) {
             if (currentCase === null) state.newCase();
-            message.channel.send(state.currentCaseToEmbed()).then();
+            this.sendCase(message.channel, state.currentCase).then();
         } else {
             const valid = state.tryGuess(args.join(" "));
             if (valid) {
@@ -161,7 +171,7 @@ class GuessingController {
             .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
         await state.channel.send(embed);
         speedRun.start();
-        state.channel.send(state.currentCaseToEmbed(`Remaining flags: ${speedRun.remainingCases}`));
+        await state.sendCurrentCase(`Remaining flags: ${speedRun.remainingCases}`);
     }
 
     /**
@@ -247,10 +257,9 @@ class GuessingChannel extends BaseChannelState {
 
     /**
      * @param {string} [description] optional description for the embed to include
-     * @return {module:"discord.js".MessageEmbed}
      */
-    currentCaseToEmbed(description) {
-        return this.guessingController.caseToEmbed(this.currentCase, description);
+    async sendCurrentCase(description) {
+        await this.guessingController.sendCase(this.channel, this.currentCase, description);
     }
 
     /**
@@ -319,9 +328,9 @@ class GuessSpeedRun {
                 if (this.remainingCases > 0) {
                     this.guessingChannel.newCase();
                     this.hintMessage = this.hintText = null;
-                    const embed = this.guessingChannel.currentCaseToEmbed(
-                        `Remaining flags: ${this.remainingCases}`);
-                    this.guessingChannel.channel.send(embed).then();
+                    this.guessingChannel
+                        .sendCurrentCase(`Remaining flags: ${this.remainingCases}`)
+                        .then();
                 } else {
                     this.shutdown();
                     this._sendResults().then();
@@ -533,6 +542,13 @@ class GuessExpertRun {
 
 /**
  * @template Item
+ * @property {Item} item
+ * @property {string} solution
+ * @property {number} attempts
+ * @property {number} hints
+ * @property {moment} creationTime
+ * @property {moment} lastHintTime
+ * @property {boolean} guessed
  */
 class GuessCase {
     /**

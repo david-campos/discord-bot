@@ -12,6 +12,7 @@
 /**
  * Generic base class to manage states based on messages
  * @template State
+ * @property {Map<string, State>} states
  */
 class StateManager {
     /**
@@ -19,9 +20,6 @@ class StateManager {
      * @param {function(DiscordMessage, Bot): State} stateConstructor
      */
     constructor(messageToKey, stateConstructor) {
-        /**
-         * @type {Map<string, State>}
-         */
         this.states = new Map();
         this.messageToKey = messageToKey;
         this.stateConstructor = stateConstructor;
@@ -63,6 +61,8 @@ class ChannelStateManager extends StateManager {
 
 /**
  * Base class for channel states to extend from
+ * @property {DiscordChannel} channel
+ * @property {Bot} context
  */
 class BaseChannelState {
     /**

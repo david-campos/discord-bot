@@ -24,6 +24,11 @@ class FlagController extends GuessingController {
             10, 300, 500);
     }
 
+    async sendCase(channel, guessCase, description) {
+        await super.sendCase(channel, guessCase, description);
+        channel.send(guessCase.item.emoji);
+    }
+
     caseToEmbed(guessCase, description) {
         return new MessageEmbed()
             .setTitle(`${guessCase.item.emoji} What does this flag represent?`)
@@ -50,7 +55,7 @@ Hints: ${guessingCase.hints}`
             );
     }
 
-    embedForWrongGuess(message, gruessingCase) {
+    embedForWrongGuess(message, guessingCase) {
         return new MessageEmbed()
             .setTitle(`${WRONG} Incorrect!`)
             .setColor(0xff0000)
