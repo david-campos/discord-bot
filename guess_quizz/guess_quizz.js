@@ -310,6 +310,7 @@ class GuessSpeedRun {
             clearTimeout(this.hintEditionTimeout);
             if (this.hintMessage) this.hintMessage.edit(this.hintText).then();
         }
+        if (this.guessingChannel.currentCase) this.guessingChannel.currentCase = null;
         this.guessingChannel.unlockChannel();
     }
 
@@ -463,6 +464,7 @@ class GuessExpertRun {
     }
 
     shutdown() {
+        this.guessingChannel.currentCase = null;
         this.guessingChannel.unlockChannel();
     }
 
