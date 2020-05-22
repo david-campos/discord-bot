@@ -86,9 +86,10 @@ class GuessingController {
      * @abstract Implement to give an embed for when someone guesses an item
      * @param {DiscordMessage} message
      * @param {GuessCase<Item>} guessingCase
+     * @param {string} guess
      * @return {module:"discord.js".MessageEmbed}
      */
-    embedForRightGuess(message, guessingCase) {
+    embedForRightGuess(message, guessingCase, guess) {
         throw new Error('GuessingController::embedForRightGuess: method must be overrided!');
     }
 
@@ -96,9 +97,12 @@ class GuessingController {
      * @abstract Implement to give an embed for when someone does not guess an item
      * @param {DiscordMessage} message
      * @param {GuessCase<Item>} guessingCase
+     * @param {string} guess
+     * @param {number|null} mistakes the number of mistakes in the guess (or null if discarded
+     * because it was already guessed)
      * @return {module:"discord.js".MessageEmbed}
      */
-    embedForWrongGuess(message, guessingCase) {
+    embedForWrongGuess(message, guessingCase, guess, mistakes) {
         throw new Error('GuessingController::embedForWrongGuess: method must be overrided!');
     }
 
@@ -123,12 +127,13 @@ class GuessingController {
             if (currentCase === null) state.newCase();
             this.sendCase(message.channel, state.currentCase).then();
         } else if(state.currentCase) {
-            const valid = state.tryGuess(args.join(" "));
+            const guess = args.join(" ");
+            const [valid, mistakes] = state.tryGuess(guess);
             if (valid) {
                 this.saveScore(message.author, currentCase).then();
-                message.channel.send(this.embedForRightGuess(message, currentCase)).then();
+                message.channel.send(this.embedForRightGuess(message, currentCase, guess)).then();
             } else {
-                message.channel.send(this.embedForWrongGuess(message, currentCase)).then();
+                message.channel.send(this.embedForWrongGuess(message, currentCase, guess, mistakes)).then();
             }
         } else {
             message.reply(`no current case to guess`).then();
@@ -249,12 +254,12 @@ class GuessingChannel extends BaseChannelState {
     /**
      * Tries to guess the current case
      * @param {string} guess
-     * @return {boolean} whether it was accepted or not
+     * @return {[boolean, number]} whether it was accepted or not and the number of mistakes
      */
     tryGuess(guess) {
-        const valid = this.currentCase.tryGuess(guess);
+        const [valid, mistakes] = this.currentCase.tryGuess(guess);
         if (valid) this.currentCase = null;
-        return valid;
+        return [valid, mistakes];
     }
 
     /**
@@ -348,7 +353,7 @@ class GuessSpeedRun {
      */
     _tryGuess(message) {
         const current = this.guessingChannel.currentCase;
-        const accepted = this.guessingChannel.tryGuess(message.content);
+        const [accepted, mistakes] = this.guessingChannel.tryGuess(message.content);
 
         if (accepted) {
             this.remainingCases -= 1;
@@ -572,15 +577,16 @@ class GuessCase {
     /**
      * Tries to guess this case with the given string
      * @param {string} guess
-     * @return {boolean} true if it gets accepted or false if it doesn't or if it has been already guessed
+     * @return {[boolean, number|null]} true if it gets accepted or false if it doesn't or if it has been already guessed,
+     * the number is the number of mistakes in the guess or null if it was already guessed
      */
     tryGuess(guess) {
-        if (this.guessed) return false;
+        if (this.guessed) return [false, null];
         const mistakes = this.mistakesInGuess(guess)
         this.attempts += 1;
         const valid = mistakes === 0;
         if (valid) this.guessed = true;
-        return valid;
+        return [valid, mistakes];
     }
 
     /**

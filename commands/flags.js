@@ -39,12 +39,11 @@ class FlagController extends GuessingController {
     /**
      * @param message
      * @param {GuessCase<Flag>} guessingCase
+     * @param {string} guess
      * @return {module:"discord.js".MessageEmbed}
      */
-    embedForRightGuess(message, guessingCase) {
-        /**
-         * @type {Flag}
-         */
+    embedForRightGuess(message, guessingCase, guess) {
+        /** @type {Flag} */
         const flag = guessingCase.item;
         return new MessageEmbed()
             .setTitle(`${RIGHT} Correct`)
@@ -55,11 +54,12 @@ Hints: ${guessingCase.hints}`
             );
     }
 
-    embedForWrongGuess(message, guessingCase) {
+    embedForWrongGuess(message, guessingCase, guess, mistakes) {
         return new MessageEmbed()
             .setTitle(`${WRONG} Incorrect!`)
             .setColor(0xff0000)
-            .setDescription(`Attempts: ${guessingCase.attempts}\nHints: ${guessingCase.hints}`);
+            .setDescription(`${guessingCase.item.emoji} is not the flag ${guess}\n`
+                + `Attempts: ${guessingCase.attempts}\nHints: ${guessingCase.hints}`);
     }
 
     expertKey(guessCase) {
