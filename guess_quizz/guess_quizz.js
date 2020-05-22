@@ -462,6 +462,7 @@ class GuessExpertRun {
     start() {
         this.guessingChannel.newCase(this.pool);
         this.guessingChannel.lockChannel(this._messageReception.bind(this));
+        this._initTimeout();
         this._sendNextGuess();
     }
 
@@ -481,7 +482,7 @@ class GuessExpertRun {
 
         clearTimeout(this.expertRunTimeout);
         this.expertRunTimeout = null;
-        const accepted = this.guessingChannel.tryGuess(message.content);
+        const [accepted, _] = this.guessingChannel.tryGuess(message.content);
         if (accepted) {
             if (this.pool.length > 0) {
                 this.guessingChannel.newCase(this.pool);
