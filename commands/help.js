@@ -43,7 +43,7 @@ function usageDescription(command) {
 
 module.exports = {
     commands: [{
-        name: 'help',
+        name: 'ayuda',
         shortDescription: 'Ayuda',
         description: 'Muestra una descripción de todos los comandos del bot.',
         usage: [{
@@ -74,7 +74,7 @@ module.exports = {
                     const pages = Math.ceil(allCommands.length / PAGE_SIZE);
                     const pageTitle = pages > 1 ? ` (pág. ${page}/${pages})` : '';
                     const pageDescr = pages > 1 ?
-                        `Usa \`${config.prefix}help pagina\` para mostrar la página 'pagina'.\n` : '';
+                        `Usa \`${config.prefix}ayuda pagina\` para mostrar la página 'pagina'.\n` : '';
                     const fields = allCommands
                         .filter((v, idx) => Math.floor(idx / PAGE_SIZE) === pageIdx)
                         .map(cmd => ({
@@ -86,7 +86,7 @@ module.exports = {
                         .setTitle(`Lista de comandos${pageTitle}`)
                         .setColor(0xffffff)
                         .setDescription(
-                            `${pageDescr}Usa \`${config.prefix}help comando\` para un 'comando' dado para más información sobre su uso.`)
+                            `${pageDescr}Usa \`${config.prefix}ayuda comando\` para un 'comando' dado para más información sobre su uso.`)
                         .addFields(fields);
                     message.channel.send(embed).then();
                 } else {
