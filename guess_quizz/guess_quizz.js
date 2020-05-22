@@ -122,7 +122,7 @@ class GuessingController {
         if (args.length === 0) {
             if (currentCase === null) state.newCase();
             this.sendCase(message.channel, state.currentCase).then();
-        } else {
+        } else if(state.currentCase) {
             const valid = state.tryGuess(args.join(" "));
             if (valid) {
                 this.saveScore(message.author, currentCase).then();
@@ -130,6 +130,8 @@ class GuessingController {
             } else {
                 message.channel.send(this.embedForWrongGuess(message, currentCase)).then();
             }
+        } else {
+            message.reply(`no current case to guess`).then();
         }
     }
 
