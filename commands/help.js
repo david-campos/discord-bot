@@ -32,7 +32,7 @@ function usageDescription(command) {
         value: `*${config.prefix}${command.name} ${command.usage.map(argumentDefinition).join(" ")}*\n`
             + command.usage
                 // flat groups
-                .reduce((p, arg) => 'group' in arg ? p.concat(arg.args) : arg, [])
+                .reduce((p, arg) => 'group' in arg ? p.concat(arg.args) : p.concat([arg]), [])
                 .map(arg =>
                     `\`    \`**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`
                     + (arg.format ? `\n\`        \`Formato: ${arg.format}` : '')
