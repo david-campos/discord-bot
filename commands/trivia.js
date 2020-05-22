@@ -1,5 +1,6 @@
 const axios = require('axios');
 const {MessageEmbed} = require('discord.js');
+const {MEDALS, RIGHT, WRONG, LETTER_EMOJI_PRE, A_EMOJI_BASE} = require('../guess_quizz/emojis');
 
 const DIFFICULTY_EMOJI = {
     "easy": "\ud83d\ude0c",
@@ -7,23 +8,11 @@ const DIFFICULTY_EMOJI = {
     "hard": "\ud83e\udd2f"
 };
 
-const MEDALS = [
-    "\ud83e\udd47",
-    "\ud83e\udd48",
-    "\ud83e\udd49"
-];
-
 const DIFFICULTY_COLORS = {
     "easy": 0x00ff00,
     "medium": 0xffff00,
     "hard": 0xff0000
 };
-
-const LETTER_EMOJI_PRE = "\ud83c";
-const A_EMOJI_BASE = "\udde6".charCodeAt(0);
-
-const WRONG = '\u274c'
-const RIGHT = '\u2705'
 
 function decodeBase64(text) {
     let buff = Buffer.from(text, 'base64');
@@ -306,7 +295,32 @@ module.exports = {
     commands: [{
         name: 'trivia',
         description: 'Creates a new game of trivia questions (using opentdb.com), '
-            + 'joins the current proposed game or starts the game (if sent by the proposer again).',
+            + 'joins the current proposed game or starts the game.',
+        usage: [{
+            group: 'choice', optional: true, args: [
+                {
+                    name: 'nQ',
+                    description: 'number of questions for the game to propose (when proposing a new game)',
+                    format: 'integer greater than zero',
+                    defaultValue: '10'
+                },
+                {
+                    name: 'join',
+                    isLiteral: true,
+                    description: 'join the currently proposed game in this channel'
+                },
+                {
+                    name: 'cancel',
+                    isLiteral: true,
+                    description: 'cancel the current game proposal'
+                },
+                {
+                    name: 'start',
+                    isLiteral: true,
+                    description: 'starts the current game proposal (only available to the creator of the proposal)'
+                },
+            ]
+        }],
         /**
          * @param {module:"discord.js".Message} message
          * @param {string[]} args
@@ -315,21 +329,31 @@ module.exports = {
         async execute(message, args, context) {
             const state = getOrGenerateState(message, context);
             if (state.onGoingGame) {
-                try {
-                    if (state.onGoingGame.author.id === message.author.id) {
-                        if (args.length > 0 && args[0].toLowerCase() === "cancel") {
+                if (args.length < 1) {
+                    if (state.onGoingGame.author.id === message.author.id)
+                        message.reply('use `join` to join, `start` to start the game or `cancel` to cancel it.');
+                    else
+                        message.reply('use `join` to join or `cancel` to cancel the game.');
+                } else {
+                    try {
+                        const option = args[0].toLowerCase();
+                        if (option === "cancel") {
                             state.onGoingGame = null;
                             message.reply('trivia game cancelled.');
-                        } else {
-                            state.onGoingGame.start()
-                                .then(() => message.channel.send(state.onGoingGame.getEmbed()));
+                        } else if (option === "join") {
+                            const added = state.onGoingGame.toggleParticipant(message.author);
+                            await message.react(added ? RIGHT : WRONG);
+                        } else if (option === "start") {
+                            if (state.onGoingGame.author.id === message.author.id)
+                                state.onGoingGame.start()
+                                    .then(() => message.channel.send(state.onGoingGame.getEmbed()));
+                            else
+                                message.reply('only the author of the proposal can start the game.');
                         }
-                    } else {
-                        const added = state.onGoingGame.toggleParticipant(message.author);
-                        await message.react(added ? RIGHT : WRONG);
+                    } catch (err) {
+                        console.log(err);
+                        message.reply(err.message);
                     }
-                } catch (err) {
-                    message.reply(err.message);
                 }
             } else {
                 let questions = 10;

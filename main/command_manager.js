@@ -9,13 +9,26 @@ const fs = require('fs');
  */
 
 /**
- * @typedef CommandArgumentDefinition
+ * @typedef CommandArgumentDefinitionGroup
+ * @property {'choice'} group
+ * @property {boolean} [optional] - whether the command is optional, by default we should assume it is not
+ * @property {CommandSpecificArgumentDefinition[]} args
+ */
+
+/**
+ * @typedef CommandSpecificArgumentDefinition
  * @property {string} name - name to display for the property
  * @property {string} description - description for the property
  * @property {string} [format] - format description for the argument
  * @property {boolean} [optional] - whether the command is optional, by default we should assume it is not
  * @property {string} [defaultValue] - default value for the property if omitted
+ * @property {boolean} [isLiteral] - true if the command must be written exactly as in the name
  */
+
+/**
+ * @typedef {CommandSpecificArgumentDefinition|CommandArgumentDefinitionGroup} CommandArgumentDefinition
+ */
+
 /**
  * @typedef Command
  * @property {ExecuteCallback} execute

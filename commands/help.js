@@ -2,20 +2,40 @@ const {MessageEmbed} = require('discord.js');
 const config = require('../bot-config.json');
 
 /**
+ * @param {CommandArgumentDefinition} arg
+ */
+function argumentDefinition(arg) {
+    if ('group' in arg) {
+        switch (arg.group) {
+            case 'choice':
+                return `${arg.optional ? '[' : '{'}${arg.args.map(argumentDefinition).join('|')}${arg.optional ? ']' : '}'}`;
+            default:
+                return '*%error: unknown group%*'; // Shouldn't happen
+        }
+    } else {
+        const nonLiteral = arg.isLiteral ? '' : '**';
+        const [optLft, optRight] = arg.optional ? ['[', ']'] : ['', ''];
+        const defVal = 'defaultValue' in arg ? `=${arg.defaultValue}` : '';
+        return `${nonLiteral}${optLft}${arg.name}${defVal}${optRight}${nonLiteral}`;
+    }
+}
+
+/**
  * @param {Command} command
  * @return {module:"discord.js".EmbedFieldData}
  */
 function usageDescription(command) {
     return {
         name: "Uso",
-        value: `*${config.prefix}${command.name} ${command.usage.map(arg =>
-                `**${arg.optional ? '[' : ''}${arg.name}${arg.defaultValue !== undefined ? `=${arg.defaultValue}` : ''}${arg.optional ? ']' : ''}**`
-            ).join(" ")}*\n`
-            + command.usage.map(arg =>
-                `\`    \`**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`
-                + (arg.format ? `\n\`        \`Formato: ${arg.format}` : '')
-                + (arg.defaultValue ? `\n\`        \`Valor por defecto: ${arg.defaultValue}`: '')
-            ).join("\n")
+        value: `*${config.prefix}${command.name} ${command.usage.map(argumentDefinition).join(" ")}*\n`
+            + command.usage
+                // flat groups
+                .reduce((p, arg) => 'group' in arg ? p.concat(arg.args) : arg, [])
+                .map(arg =>
+                    `\`    \`**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`
+                    + (arg.format ? `\n\`        \`Formato: ${arg.format}` : '')
+                    + (arg.defaultValue ? `\n\`        \`Valor por defecto: ${arg.defaultValue}` : '')
+                ).join("\n")
     };
 }
 

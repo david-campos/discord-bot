@@ -177,7 +177,7 @@ module.exports = {
     commands: [
         {
             name: 'flag',
-            description: 'Gives a random flag to guess',
+            description: 'Gives a random flag to guess or guesses the current flag obtained this way',
             usage: [
                 {name: 'guess', description: 'country you guess the flag belongs to', optional: true}
             ],
@@ -194,17 +194,23 @@ module.exports = {
         },
         {
             name: 'flag-hint',
-            description: 'Gives a hint',
+            description: 'Gives a hint for the current flag guess',
+            usage: [],
             execute: controller.cmdHint.bind(controller)
         },
         {
             name: 'flag-expert',
-            description: 'Start an expert run',
+            description: 'Start an expert run, a challenge not made for the faint of heart!',
+            usage: [],
             execute: controller.cmdExpertRunStart.bind(controller)
         },
         {
             name: 'flag-stats',
-            description: "Lists flag scores",
+            usage: [{
+                name: '...@someone', description: 'mention users to see only the specified users stats',
+                optional: true, format: 'discord mention'
+            }],
+            description: "Lists flag scores. By default it lists the top user stats, unless other users are mentioned in the message.",
             /**
              * @param {Message} message
              * @param {string[]} args
