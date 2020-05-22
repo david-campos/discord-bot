@@ -12,9 +12,9 @@ function usageDescription(command) {
                 `**${arg.optional ? '[' : ''}${arg.name}${arg.defaultValue !== undefined ? `=${arg.defaultValue}` : ''}${arg.optional ? ']' : ''}**`
             ).join(" ")}*\n`
             + command.usage.map(arg =>
-                `    **${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`
-                + (arg.format ? `\n        Formato: ${arg.format}` : '')
-                + (arg.defaultValue ? `\n        Valor por defecto: ${arg.defaultValue}`: '')
+                `\`    \`**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`
+                + (arg.format ? `\n\`        \`Formato: ${arg.format}` : '')
+                + (arg.defaultValue ? `\n\`        \`Valor por defecto: ${arg.defaultValue}`: '')
             ).join("\n")
     };
 }
