@@ -3,7 +3,7 @@ const { MessageEmbed } = require('discord.js');
 
 module.exports = {commands: [{
 	name: 'eltiempo',
-	description: 'El tiempo',
+	shortDescription: 'El tiempo',
 	/**
 	 * @param {module:"discord.js".Message} message
 	 * @param {string[]} args

@@ -33,7 +33,8 @@ const fs = require('fs');
  * @typedef Command
  * @property {ExecuteCallback} execute
  * @property {string} name
- * @property {string} description
+ * @property {string} [description] - if not deffined, short description should be always used
+ * @property {string} shortDescription
  * @property {CommandArgumentDefinition[]} [usage]
  * @property {boolean} [hidden]
  */

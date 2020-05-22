@@ -1,6 +1,8 @@
 const {MessageEmbed} = require('discord.js');
 const config = require('../bot-config.json');
 
+const PAGE_SIZE = 25;
+
 /**
  * @param {CommandArgumentDefinition} arg
  */
@@ -50,24 +52,39 @@ module.exports = {
          */
         async execute(message, args, context) {
             try {
-                if (args.length === 0) {
-                    const fields = context.getCommandList()
-                        .filter(cmd => !cmd.hidden)
+                if (args.length === 0 || !isNaN(parseInt(args[0], 10))) {
+                    const page = args.length === 0 ? 1 : parseInt(args[0], 10);
+                    if (page < 1) {
+                        message.reply('invalid page').then();
+                        return;
+                    }
+                    const pageIdx = page - 1;
+                    const allCommands = context.getCommandList().filter(cmd => !cmd.hidden);
+                    const pages = Math.ceil(allCommands.length / PAGE_SIZE);
+                    const pageTitle = pages > 1 ? ` (pág. ${page}/${pages})` : '';
+                    const pageDescr = pages > 1 ?
+                        `Usa \`${config.prefix}help pagina\` para mostrar la página 'pagina'.\n` : '';
+                    const fields = allCommands
+                        .filter((v, idx) => Math.floor(idx / PAGE_SIZE) === pageIdx)
                         .map(cmd => ({
                             name: context.config.prefix + cmd.name,
-                            value: cmd.description
+                            value: cmd.shortDescription,
+                            inline: true
                         }));
                     const embed = new MessageEmbed()
-                        .setTitle('Ayuda')
+                        .setTitle(`Lista de comandos${pageTitle}`)
                         .setColor(0xffffff)
+                        .setDescription(
+                            `${pageDescr}Usa \`${config.prefix}help comando\` para un 'comando' dado para más información sobre su uso.`)
                         .addFields(fields);
                     message.channel.send(embed).then();
                 } else {
-                    const command = context.getCommandList().find(cmd => cmd.name === args[0]);
+                    const key = args[0].startsWith(config.prefix) ? args[0].substring(1) : args[0];
+                    const command = context.getCommandList().find(cmd => cmd.name === key);
                     if (command) {
                         /** @type {module:"discord.js".EmbedFieldData[]} */
                         const fields = [
-                            {name: 'Descripción', value: command.description}
+                            {name: 'Descripción', value: command.description || command.shortDescription}
                         ];
                         if (command.usage) {
                             fields.push(usageDescription(command));
