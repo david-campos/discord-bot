@@ -3,6 +3,7 @@ const {RIGHT, WRONG} = require("../guess_quizz/emojis");
 const {GuessingController} = require("../guess_quizz/guess_quizz");
 const {MessageEmbed} = require('discord.js');
 const config = require('../bot-config.json');
+const {DEFAULT_SPEEDRUN_LENGTH} = require("../guess_quizz/guess_quizz");
 
 
 /**
@@ -88,6 +89,30 @@ module.exports = {
                 {name: 'guess', description: 'capital you guess for the given country', optional: true}
             ],
             execute: capitalController.cmdBasic.bind(capitalController)
+        },
+        {
+            name: 'capital-speed',
+            shortDescription: 'Speed-run de capitales (en inglés)',
+            description: 'Initiates a capital speedrun. During the speedrun anyone can answer, countries will come one after the other, the first person to answer the correct capital get the point.',
+            usage: [
+                {name: 'N', description: 'number of countries in the speedrun', optional: true, format: 'positive integer',
+                    defaultValue: DEFAULT_SPEEDRUN_LENGTH}
+            ],
+            execute: capitalController.cmdSpeedRunStart.bind(capitalController)
+        },
+        {
+            name: 'capital-hint',
+            shortDescription: 'Pista de capitales (en inglés)',
+            description: 'Gives a hint for the current capital guess',
+            usage: [],
+            execute: capitalController.cmdHint.bind(capitalController)
+        },
+        {
+            name: 'capital-expert',
+            shortDescription: 'Expert-run de capitales (en inglés)',
+            description: 'Start an expert run, a challenge not made for the faint of heart!',
+            usage: [],
+            execute: capitalController.cmdExpertRunStart.bind(capitalController)
         },
         {
             name: 'ctr-info',
