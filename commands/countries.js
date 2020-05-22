@@ -11,7 +11,9 @@ const {DEFAULT_SPEEDRUN_LENGTH} = require("../guess_quizz/guess_quizz");
  */
 class CapitalController extends GuessingController {
     constructor() {
-        super(countries.filter(c => c.capital.length > 0), 3000,
+        super(countries.filter(c => c.capital.length > 0)
+                .filter(c => !!c.capital.find(str => str.trim().length > 0)),
+            3000,
             10, 300, 500);
     }
 
@@ -69,7 +71,7 @@ Hints: ${guessingCase.hints}`
      * @param {Country} item
      */
     itemSolution(item) {
-        return item.capital[0];
+        return item.capital.find(str => str.trim().length > 0);
     }
 
     async saveScore(user, guessCase) {
