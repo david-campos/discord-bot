@@ -300,8 +300,6 @@ class GuessSpeedRun {
         this.answers = new Map();
         /** @type {GuessingChannel} */
         this.guessingChannel = guessingChannel;
-        /** @type {number} */
-        this.messagesSinceHint = 0;
     }
 
     start() {
@@ -324,10 +322,9 @@ class GuessSpeedRun {
      * @private
      */
     async _messageReception(message, context) {
-        this.messagesSinceHint++;
         if (message.author.bot) return;
-        if (message.content === "??" || message.content === "?") {
-            await this._giveHint();
+        if (message.content === "??" || message.content === "?" || message.content === "¿" || message.content === "¿¿") {
+            await this._giveHint(message.content.length === 2);
         } else if (message.content === "\u274c") {
             this.shutdown();
             const embed = new MessageEmbed()
@@ -404,7 +401,7 @@ class GuessSpeedRun {
         await this.guessingChannel.channel.send(embed);
     }
 
-    async _giveHint() {
+    async _giveHint(forceSend) {
         const currentCase = this.guessingChannel.currentCase;
         if (!currentCase) return;
         if (currentCase.lastHintTime === null
@@ -417,7 +414,7 @@ class GuessSpeedRun {
             }, this.hintCooldown);
             this.hintText = `Hint: ${currentCase.getRandomHint()}\n`;
             const content = this.hintText + `Hint cooldown! 3s remaining.`;
-            if (this.hintMessage && this.messagesSinceHint < 10) {
+            if (this.hintMessage && !forceSend) {
                 this.hintMessage.edit(content).then();
             } else {
                 this.hintMessage = await this.guessingChannel.channel.send(content);
