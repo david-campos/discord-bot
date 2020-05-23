@@ -300,6 +300,8 @@ class GuessSpeedRun {
         this.answers = new Map();
         /** @type {GuessingChannel} */
         this.guessingChannel = guessingChannel;
+        /** @type {number} */
+        this.messagesSinceHint = 0;
     }
 
     start() {
@@ -322,6 +324,7 @@ class GuessSpeedRun {
      * @private
      */
     async _messageReception(message, context) {
+        this.messagesSinceHint++;
         if (message.author.bot) return;
         if (message.content === "??" || message.content === "?") {
             await this._giveHint();
@@ -414,11 +417,12 @@ class GuessSpeedRun {
             }, this.hintCooldown);
             this.hintText = `Hint: ${currentCase.getRandomHint()}\n`;
             const content = this.hintText + `Hint cooldown! 3s remaining.`;
-            if (this.hintMessage) {
+            if (this.hintMessage && this.messagesSinceHint < 10) {
                 this.hintMessage.edit(content).then();
             } else {
                 this.hintMessage = await this.guessingChannel.channel.send(content);
             }
+            this.messagesSinceHint = 0;
         } else if (this.hintMessage) {
             // In cooldown
             const milis = Math.max(3000 - moment().diff(currentCase.lastHintTime, 'milliseconds'), 0);
