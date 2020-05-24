@@ -10,8 +10,12 @@ const MEDALS = [
 const LETTER_EMOJI_PRE = "\ud83c";
 const A_EMOJI_BASE = "\udde6".charCodeAt(0);
 
+const OK = "\ud83c\udd97";
+const FREE = "\ud83c\udd93";
+
 module.exports = {
     WRONG, RIGHT, MEDALS,
     LETTER_EMOJI_PRE,
-    A_EMOJI_BASE
+    A_EMOJI_BASE,
+    OK, FREE
 };

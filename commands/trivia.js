@@ -1,6 +1,6 @@
 const axios = require('axios');
 const {MessageEmbed} = require('discord.js');
-const {MEDALS, RIGHT, WRONG, LETTER_EMOJI_PRE, A_EMOJI_BASE} = require('../guess_quizz/emojis');
+const {MEDALS, RIGHT, WRONG, OK, FREE, LETTER_EMOJI_PRE, A_EMOJI_BASE} = require('../guess_quizz/emojis');
 
 const DIFFICULTY_EMOJI = {
     "easy": "\ud83d\ude0c",
@@ -343,7 +343,7 @@ module.exports = {
                             message.reply('trivia game cancelled.');
                         } else if (option === "join") {
                             const added = state.onGoingGame.toggleParticipant(message.author);
-                            await message.react(added ? RIGHT : WRONG);
+                            await message.react(added ? OK : FREE);
                         } else if (option === "start") {
                             if (state.onGoingGame.author.id === message.author.id)
                                 state.onGoingGame.start()
@@ -367,10 +367,10 @@ module.exports = {
                     .setTitle('\ud83d\udcda Trivia game!')
                     .setDescription(
                         `${message.author.username} has proposed a trivia game with ${questions} questions!\n`
-                        + `**Send \`${context.config.prefix}trivia\` to join / leave.**\n`
+                        + `**Send \`${context.config.prefix}trivia join\` to join or leave.**\n`
                         + `*The game will start when ${message.author.username} `
-                        + `introduces \`${context.config.prefix}trivia\` again.*\n\n`
-                        + `<@${message.author.id}>, send \`${context.config.prefix}trivia cancel\` to cancel the game.`
+                        + `introduces \`${context.config.prefix}trivia start\`.*\n\n`
+                        + `Send \`${context.config.prefix}trivia cancel\` to cancel the game.`
                     )
                 message.channel.send(embed).then();
             }
