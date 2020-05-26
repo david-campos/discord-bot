@@ -34,7 +34,7 @@ const SUBCOMMANDS = {
             }
         }
         if (currentKey) groupedArgs[currentKey] = groupedArgs[currentKey].join(' ');
-        if (! ('titulo' in groupedArgs && 'cuando' in groupedArgs) ) {
+        if (!('titulo' in groupedArgs && 'cuando' in groupedArgs)) {
             message.reply('los campos `cuando` y `titulo` son obligatorios.')
             return;
         }
@@ -64,6 +64,34 @@ const SUBCOMMANDS = {
         await message.react(OK);
         scheduleEvent(context, eventObj);
         await sendEmbed(context, eventObj)
+    },
+    /**
+     * @type {ExecuteCallback}
+     */
+    mostrar: async (message, args, context) => {
+        const PAGE_SIZE = 25;
+        const count = await Event.count({where: {channel_id: message.channel.id}});
+        const pagesTotal = Math.ceil(count / PAGE_SIZE);
+        const page = args[0] && !isNaN(parseInt(args[0], 10)) ? parseInt(args[0], 10) - 1 : 0;
+        if (page >= pagesTotal) {
+           message.reply(`página inválida (sólo hay ${pagesTotal} páginas).`);
+           return;
+        }
+        const toSchedule = await Event.findAll({
+            where: {channel_id: message.channel.id},
+            order: ['start', 'ASC'],
+            offset: page * PAGE_SIZE,
+            limit: PAGE_SIZE
+        });
+        const embed = new MessageEmbed()
+            .setTitle('Alertas de eventos' + (pagesTotal > 1 ? ` (pág. ${page}/${pagesTotal})` : ''))
+            .setDescription('Esta es una lista de los próximos eventos registrados por orden de ocurrencia.')
+            .addFields(...toSchedule.map(event => ({
+                name: event.id + ') ' + event.title,
+                value: moment(event.start, TIMESTAMP_FORMAT).format('LLL'),
+                inline: true
+            })));
+        message.channel.send(embed).then();
     }
 };
 
@@ -80,15 +108,14 @@ async function eventAlert(context, event) {
     console.log('EVENT DELETED: ', event.title);
 }
 
-function scheduleEvent(context, event, notifyIfSoon) {
-    const originalStart = moment(event.start, TIMESTAMP_FORMAT);
-    const start = originalStart.clone().subtract(5, 'minutes');
+function scheduleEvent(context, event, notifyIfPassed) {
+    const start = moment(event.start, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
     if (start.isAfter(now)) {
         scheduledEvents.push(setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
         console.log('EVENT SCHEDULED: ', event.title, start.format(),
             `(${start.diff(now, 'minutes', true)}mins.)`);
-    } else if(originalStart.isAfter(now) && notifyIfSoon) {
+    } else if (notifyIfPassed) {
         eventAlert(context, event).then();
     }
 }
@@ -143,9 +170,11 @@ module.exports = {
     },
     ready: async function (context) {
         const toSchedule = await Event.findAll({
-            where: {start: {
-                [Sequelize.Op.gt]: moment().toDate()
-            }}
+            where: {
+                start: {
+                    [Sequelize.Op.gt]: moment().toDate()
+                }
+            }
         });
         toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
         const deleted = await Event.destroy({
@@ -154,7 +183,7 @@ module.exports = {
         if (deleted) console.log(`DELETED ${deleted} EVENTS`);
     },
     commands: [{
-        name: 'evento',
+        name: 'eventos',
         shortDescription: 'Notificación de eventos',
         description: 'Crea, modifica y elimina notificaciones de eventos (fecha y hora de españa).',
         usage: [],
