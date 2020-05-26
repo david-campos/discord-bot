@@ -39,7 +39,7 @@ const SUBCOMMANDS = {
             return;
         }
         event.title = groupedArgs['titulo'];
-        const cuando = moment(groupedArgs['cuando'], TIMESTAMP_INPUT);
+        const cuando = moment(groupedArgs['cuando'], TIMESTAMP_INPUT, true);
         if (!cuando.isValid()) {
             message.reply('`cuando` tiene un formato inválido');
             return;
@@ -55,7 +55,7 @@ const SUBCOMMANDS = {
             if (argKey in groupedArgs) event[objKey] = groupedArgs[argKey];
         }
         if ('fin' in groupedArgs) {
-            const fin = moment(groupedArgs['fin'], TIMESTAMP_INPUT)
+            const fin = moment(groupedArgs['fin'], TIMESTAMP_INPUT, true)
             if (fin.isValid()) event.end = fin.format(TIMESTAMP_FORMAT);
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
@@ -80,14 +80,17 @@ async function eventAlert(context, event) {
 
 function scheduleEvent(context, event) {
     const originalStart = moment(event.start, TIMESTAMP_FORMAT);
-    const start = originalStart.subtract(5, 'minutes');
+    const start = originalStart.clone().subtract(5, 'minutes');
     const now = moment();
     if (start.isAfter(now)) {
         scheduledEvents.push(setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
         console.log('EVENT SCHEDULED: ', event.title, start.format(),
             `(${start.diff(now, 'minutes', true)}mins.)`);
     } else if (originalStart.isAfter(now)) {
+        console.log('EVENT SENT');
         eventAlert(context, event).then();
+    } else {
+        console.log('EVENT DISCARDED', originalStart.format(), now.format());
     }
 }
 
