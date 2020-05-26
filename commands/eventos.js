@@ -79,7 +79,7 @@ const SUBCOMMANDS = {
         }
         const toSchedule = await Event.findAll({
             where: {channel_id: message.channel.id},
-            order: ['start', 'ASC'],
+            order: ['start', 'id'],
             offset: page * PAGE_SIZE,
             limit: PAGE_SIZE
         });
