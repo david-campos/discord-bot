@@ -84,6 +84,8 @@ function scheduleEvent(context, event) {
     const now = moment();
     if (start.isAfter(now)) {
         scheduledEvents.push(setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
+        console.log('EVENT SCHEDULED: ', event.title, start.format(),
+            `(${start.diff(now, 'minutes', true)}mins.)`);
     } else if (originalStart.isAfter(now)) {
         eventAlert(context, event).then();
     }
