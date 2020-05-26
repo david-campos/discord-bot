@@ -68,6 +68,10 @@ const SUBCOMMANDS = {
         const PAGE_SIZE = 25;
         const count = await Event.count({where: {channel_id: message.channel.id}});
         const pagesTotal = Math.ceil(count / PAGE_SIZE);
+        if (pagesTotal === 0) {
+            message.reply('no hay ningún evento previsto.');
+            return;
+        }
         const page = args[0] && !isNaN(parseInt(args[0], 10)) ? parseInt(args[0], 10) - 1 : 0;
         if (page >= pagesTotal) {
            message.reply(`página inválida (sólo hay ${pagesTotal} páginas).`);
@@ -106,12 +110,19 @@ const SUBCOMMANDS = {
             message.reply('no se ha encontrado el evento');
             return;
         }
+        const scheduled = scheduledEvents.has(id);
         await event.destroy();
+        if (scheduled) {
+            clearTimeout(scheduledEvents.get(id));
+            scheduledEvents.delete(id);
+        }
+        console.log('EVENT DELETED (user request): ', event.title, scheduled ? 'was scheduled' : 'not scheduled');
         await message.react(WASTE_BASKET);
     }
 };
 
-const scheduledEvents = [];
+// Map by event id
+const scheduledEvents = new Map();
 
 /**
  * Alerts about an event to the corresponding channel!
@@ -120,15 +131,21 @@ const scheduledEvents = [];
  */
 async function eventAlert(context, event) {
     await sendEmbed(context, event);
+    const id = event.id;
+    const scheduled = scheduledEvents.has(id);
     await event.destroy();
-    console.log('EVENT DELETED: ', event.title);
+    if (scheduled) {
+        clearTimeout(scheduledEvents.get(id));
+        scheduledEvents.delete(id);
+    }
+    console.log('EVENT DELETED: ', event.title, scheduled ? 'was scheduled' : 'not scheduled');
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
     const start = moment(event.start, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
     if (start.isAfter(now)) {
-        scheduledEvents.push(setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
+        scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
         console.log('EVENT SCHEDULED: ', event.title, start.format(),
             `(${start.diff(now, 'minutes', true)}mins.)`);
     } else if (notifyIfPassed) {
@@ -185,6 +202,10 @@ module.exports = {
         }, {sequelize: context.sequelize, timestamps: false});
     },
     ready: async function (context) {
+        const deleted = await Event.destroy({
+            where: {start: {[Sequelize.Op.lte]: moment().toDate()}}
+        });
+        if (deleted) console.log(`DELETED ${deleted} EVENTS`);
         const toSchedule = await Event.findAll({
             where: {
                 start: {
@@ -193,10 +214,6 @@ module.exports = {
             }
         });
         toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
-        const deleted = await Event.destroy({
-            where: {start: {[Sequelize.Op.lte]: moment().toDate()}}
-        });
-        if (deleted) console.log(`DELETED ${deleted} EVENTS`);
     },
     commands: [{
         name: 'eventos',
