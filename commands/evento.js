@@ -26,12 +26,14 @@ const SUBCOMMANDS = {
         let currentKey = null;
         for (const arg of args) {
             if (arg.startsWith('-')) {
+                if (currentKey) groupedArgs[currentKey] = groupedArgs[currentKey].join(' ');
                 currentKey = arg.substring(1).toLowerCase().trim();
-                groupedArgs[currentKey] = "";
+                groupedArgs[currentKey] = [];
             } else if (currentKey) {
-                groupedArgs[currentKey] += " " + arg;
+                groupedArgs[currentKey].push(arg);
             }
         }
+        if (currentKey) groupedArgs[currentKey] = groupedArgs[currentKey].join(' ');
         if (! ('titulo' in groupedArgs && 'cuando' in groupedArgs) ) {
             message.reply('los campos `cuando` y `titulo` son obligatorios.')
             return;
@@ -43,7 +45,7 @@ const SUBCOMMANDS = {
             return;
         }
         event.start = cuando.format(TIMESTAMP_FORMAT);
-        for (const [argKey, objKey] in Object.entries({
+        for (const [argKey, objKey] of Object.entries({
             descripcion: 'description',
             link: 'link',
             lugar: 'location',
@@ -60,16 +62,40 @@ const SUBCOMMANDS = {
             event.color = groupedArgs.color
         // await Event.create(event)
         await message.react(OK);
-        await sendEmbed(context, event)
+        scheduleEvent(context, event);
+        await sendEmbed(context, event, 'Creado: ')
     }
 };
+
+const scheduledEvents = [];
+
+/**
+ * Alerts about an event to the corresponding channel!
+ * @param {Bot} context
+ * @param event
+ */
+async function eventAlert(context, event) {
+    await sendEmbed(context, event, 'Notificación: ');
+}
+
+function scheduleEvent(context, event) {
+    const originalStart = moment(event.start, TIMESTAMP_FORMAT);
+    const start = originalStart.subtract(5, 'minutes');
+    const now = moment();
+    if (start.isAfter(now)) {
+        scheduledEvents.push(setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
+    } else if (originalStart.isAfter(now)) {
+        eventAlert(context, event).then();
+    }
+}
 
 /**
  * @param {Bot} context
  * @param event
+ * @param [preTitle]
  * @return {Promise<void>}
  */
-async function sendEmbed(context, event) {
+async function sendEmbed(context, event, preTitle) {
     /**
      * @type {module:"discord.js".TextChannel|module:"discord.js".DMChannel}
      */
@@ -82,14 +108,13 @@ async function sendEmbed(context, event) {
     const start = moment(event.start, TIMESTAMP_FORMAT);
     const end = event.end ? moment(event.end, TIMESTAMP_FORMAT) : null;
     const embed = new MessageEmbed()
-        .setTitle(event.title)
+        .setTitle((preTitle ? preTitle : '') + event.title)
         .setAuthor(creator.username, creator.defaultAvatarURL)
-        .setFooter(start.format('LLLL'));
-    if (end) embed.setFooter(embed.footer + ' - ' + end.format('LLLL'));
+        .setFooter(end ? `${start.format('lll')} - ${end.format('lll')}` : start.format('LLLL'));
     if (event.description) embed.setDescription(event.description);
     if (event.link) embed.setURL(event.link);
     if (event.color) embed.setColor(parseInt(event.color, 16));
-    if (event.location) embed.setFooter(embed.footer + ' (' + event.location + ')');
+    if (event.location) embed.setFooter(embed.footer.text + ' (' + event.location + ')');
     if (event.imageUrl) embed.setImage(event.imageUrl);
     await channel.send(embed);
 }

@@ -51,6 +51,10 @@ class Bot {
                 console.log(`Logged in as ${this.client.user.tag}!`);
             });
             this.client.on('message', this.onMessage.bind(this));
+            this.client.on('disconnect', (err) => {
+                console.error('DISCONECTED', err);
+                this.client.connect();
+            });
 
             this._commandMgr.registerAndInitCommands(this.config.commandsFolder);
 
