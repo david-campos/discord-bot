@@ -42,6 +42,7 @@ const fs = require('fs');
 /**
  * @typedef CommandExports
  * @property {function(Bot): void} [init]
+ * @property {function(Bot): void} [ready]
  * @property {Object.<string, function>} hooks
  * @property {Command[]} commands
  */
@@ -82,6 +83,10 @@ class CommandManager {
             if (definition.init) {
                 console.log(`\tinit(context)`);
                 definition.init(this._bot);
+            }
+            if (definition.ready) {
+                console.log('\tready(context)');
+                this._bot.client.on('ready', definition.ready.bind(null, this._bot));
             }
             if (definition.hooks && typeof definition.hooks === "object") {
                 console.log(`\tHooks: ${Object.entries(definition.hooks).map(hook => hook[0]).join(", ")}`);

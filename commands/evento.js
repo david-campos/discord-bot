@@ -60,10 +60,10 @@ const SUBCOMMANDS = {
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
             event.color = groupedArgs.color
-        // await Event.create(event)
+        const eventObj = await Event.create(event)
         await message.react(OK);
-        scheduleEvent(context, event);
-        await sendEmbed(context, event, 'Creado: ')
+        scheduleEvent(context, eventObj);
+        await sendEmbed(context, eventObj)
     }
 };
 
@@ -75,10 +75,12 @@ const scheduledEvents = [];
  * @param event
  */
 async function eventAlert(context, event) {
-    await sendEmbed(context, event, 'Notificación: ');
+    await sendEmbed(context, event);
+    await event.delete();
+    console.log('EVENT DELETED: ', event.title);
 }
 
-function scheduleEvent(context, event) {
+function scheduleEvent(context, event, notifyIfSoon) {
     const originalStart = moment(event.start, TIMESTAMP_FORMAT);
     const start = originalStart.clone().subtract(5, 'minutes');
     const now = moment();
@@ -86,11 +88,8 @@ function scheduleEvent(context, event) {
         scheduledEvents.push(setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
         console.log('EVENT SCHEDULED: ', event.title, start.format(),
             `(${start.diff(now, 'minutes', true)}mins.)`);
-    } else if (originalStart.isAfter(now)) {
-        console.log('EVENT SENT');
+    } else if(originalStart.isAfter(now) && notifyIfSoon) {
         eventAlert(context, event).then();
-    } else {
-        console.log('EVENT DISCARDED', originalStart.format(), now.format());
     }
 }
 
@@ -141,6 +140,18 @@ module.exports = {
             color: {type: Sequelize.STRING, allowNull: true},
             imageUrl: {type: Sequelize.STRING, allowNull: true}
         }, {sequelize: context.sequelize, timestamps: false});
+    },
+    ready: async function (context) {
+        const toSchedule = await Event.findAll({
+            where: {start: {
+                [Sequelize.Op.gt]: moment().toDate()
+            }}
+        });
+        toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
+        const deleted = await Event.destroy({
+            where: {start: {[Sequelize.Op.lte]: moment().toDate()}}
+        });
+        if (deleted) console.log(`DELETED ${deleted} EVENTS`);
     },
     commands: [{
         name: 'evento',
