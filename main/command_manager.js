@@ -39,6 +39,13 @@ const fs = require('fs');
  * @property {boolean} [hidden]
  */
 
+/**
+ * @typedef CommandExports
+ * @property {function(Bot): void} [init]
+ * @property {Object.<string, function>} hooks
+ * @property {Command[]} commands
+ */
+
 class CommandManager {
     /**
      * @param {Bot} bot
@@ -68,6 +75,9 @@ class CommandManager {
         const commandFiles = fs.readdirSync(commandsFolder).filter(file => file.endsWith('.js'));
         for (const file of commandFiles) {
             console.log(`${commandsFolder}/${file}`);
+            /**
+             * @type {CommandExports}
+             */
             const definition = require.main.require(`${commandsFolder}/${file}`);
             if (definition.init) {
                 console.log(`\tinit(context)`);
