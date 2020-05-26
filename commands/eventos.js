@@ -43,6 +43,10 @@ const SUBCOMMANDS = {
             message.reply('`cuando` tiene un formato inválido');
             return;
         }
+        if (cuando.clone().subtract(10, 'minutes').isSameOrBefore(moment())) {
+            message.reply(`el evento sería en menos de diez minutos! (${cuando.format(TIMESTAMP_INPUT)})`);
+            return;
+        }
         event.start = cuando.format(TIMESTAMP_FORMAT);
         for (const [argKey, objKey] of Object.entries({
             descripcion: 'description',
