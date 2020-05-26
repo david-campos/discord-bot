@@ -1,7 +1,7 @@
 const Sequelize = require("sequelize");
 
 const moment = require('moment');
-const {OK} = require("../guess_quizz/emojis");
+const {OK, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
 
 /**
@@ -12,11 +12,10 @@ class Event extends Sequelize.Model {
 
 const TIMESTAMP_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
 const TIMESTAMP_INPUT = 'DD/MM/YYYY HH:mm';
-
+/**
+ * @type {{crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback}}
+ */
 const SUBCOMMANDS = {
-    /**
-     * @type {ExecuteCallback}
-     */
     crear: async (message, args, context) => {
         const event = {
             channel_id: message.channel.id,
@@ -65,9 +64,6 @@ const SUBCOMMANDS = {
         scheduleEvent(context, eventObj);
         await sendEmbed(context, eventObj)
     },
-    /**
-     * @type {ExecuteCallback}
-     */
     mostrar: async (message, args, context) => {
         const PAGE_SIZE = 25;
         const count = await Event.count({where: {channel_id: message.channel.id}});
@@ -92,6 +88,26 @@ const SUBCOMMANDS = {
                 inline: true
             })));
         message.channel.send(embed).then();
+    },
+    borrar: async (message, args, context) => {
+        if (args[0] === undefined || isNaN(parseInt(args[0], 10))) {
+            message.reply('debes indicar el id del evento a borrar (utiliza `eventos mostrar` para ver los ids).');
+            return;
+        }
+        const id = parseInt(args[0], 10);
+        if (id < 0) {
+            message.reply('el id debe ser mayor o igual que 0!');
+            return;
+        }
+        const event = await Event.findOne({
+            where: {channel_id: message.channel.id, id},
+        });
+        if (!event) {
+            message.reply('no se ha encontrado el evento');
+            return;
+        }
+        await event.destroy();
+        await message.react(WASTE_BASKET);
     }
 };
 
@@ -104,7 +120,7 @@ const scheduledEvents = [];
  */
 async function eventAlert(context, event) {
     await sendEmbed(context, event);
-    await event.delete();
+    await event.destroy();
     console.log('EVENT DELETED: ', event.title);
 }
 
