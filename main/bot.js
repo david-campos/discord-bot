@@ -10,6 +10,7 @@ const {Sequelize} = require('sequelize');
  * @property {boolean} silentMode - silent mode enabled
  * @property {string} token - token for the discord client to login
  * @property {string} commandsFolder - folder to find the commands to load
+ * @property {boolean} logDb - whether to make log of the database operations or not
  */
 
 /**
@@ -28,7 +29,8 @@ class Bot {
         this.config = config;
         this.sequelize = new Sequelize({
             dialect: 'sqlite',
-            storage: 'database.sqlite'
+            storage: 'database.sqlite',
+            logging: config.logDb ? console.log.bind(null, '[DB]') : false
         });
 
         this._commandMgr = new CommandManager(this);
