@@ -196,9 +196,9 @@ async function eventAlert(context, event) {
 function scheduleEvent(context, event, notifyIfPassed) {
     const start = moment(event.start, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
-    // Ignore events for more than one day after this
-    // (scheduling should be repeated each 6h, so 13 should be enough)
-    if (start.isAfter(moment().add(13, 'hours'))) return;
+    // Ignore events for more than 6h after this
+    // (scheduling should be repeated in less than 6h)
+    if (start.isAfter(moment().add(6, 'hours'))) return;
     if (start.isAfter(now)) {
         if (scheduledEvents.has(event.id)) return;
         scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
@@ -209,10 +209,10 @@ function scheduleEvent(context, event, notifyIfPassed) {
     }
 }
 
-async function scheduleNextDayEvents(context) {
+async function scheduleNextEvents(context) {
     console.log(LOG_TAG, 'scheduling events for next 6h')
     // Repeat in 6 hours
-    setTimeout(scheduleNextDayEvents.bind(null, context), 6 * 60 * 60 * 1000);
+    setTimeout(scheduleNextEvents.bind(null, context), 6 * 60 * 60 * 1000);
 
     const toSchedule = await Event.findAll({
         where: {
@@ -282,7 +282,7 @@ module.exports = {
         }, {sequelize: context.sequelize, timestamps: false});
     },
     ready: async function (context) {
-        await scheduleNextDayEvents(context);
+        await scheduleNextEvents(context);
     },
     commands: [{
         name: 'eventos',
