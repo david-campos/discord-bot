@@ -101,8 +101,16 @@ const SUBCOMMANDS = {
         if ('notificar' in groupedArgs) {
             const [notificar, withHour] = parseInputDate(groupedArgs['notificar']);
             if (notificar.isValid() && withHour) event.notifyAt = notificar.format(TIMESTAMP_FORMAT);
+            else {
+                message.reply('`notificar` tiene formato inválido');
+                return;
+            }
         } else {
             event.notifyAt = defaultNotifyAtFor(cuando, withHour).format(TIMESTAMP_FORMAT);
+        }
+        if (moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(10, 'minutes').isSameOrBefore(moment())) {
+            message.reply(`el evento se notificaría en menos de diez minutos! (${cuando.format(TIMESTAMP_OUTPUT)})`);
+            return;
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
             event.color = groupedArgs.color
