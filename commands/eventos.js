@@ -13,7 +13,7 @@ const LOG_TAG = `[${path.basename(__filename)}]`;
 class Event extends Sequelize.Model {
 }
 
-const TIMESTAMP_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
+const TIMESTAMP_FORMAT = 'YYYY-MM-DDTHH:mm:ss.SSS';
 const TIMESTAMP_INPUT = [
     'DD/MM/YYYY HH:mm', 'DD/MM/YYYY H:m',
     'DD/MM/YY HH:mm', 'DD/MM/YY H:m',
@@ -329,14 +329,14 @@ async function scheduleNextEvents(context, doNotRepeat) {
     const toSchedule = await Event.findAll({
         where: {
             notifyAt: {
-                $lte: moment().add(6, 'hours').toDate()
+                [Sequelize.Op.lte]: moment().add(6, 'hours').format(TIMESTAMP_FORMAT)
             }
         }
     });
     console.log(LOG_TAG, `scheduling events for next 6h (${toSchedule.length} events)`);
     toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
     const deleted = await Event.destroy({
-        where: {notifyAt: {$lte: moment().toDate()}}
+        where: {notifyAt: {[Sequelize.Op.lte]: moment().format(TIMESTAMP_FORMAT)}}
     });
     // Should be 0 but just in case
     if (deleted) console.log(LOG_TAG, `deleted ${deleted} events (passed).`);
@@ -390,8 +390,8 @@ module.exports = {
             creator: {type: Sequelize.STRING, allowNull: false},
             title: {type: Sequelize.STRING, allowNull: false},
             description: {type: Sequelize.STRING, allowNull: true},
-            start: {type: Sequelize.DATE, allowNull: false},
-            notifyAt: {type: Sequelize.DATE, allowNull: false},
+            start: {type: Sequelize.TEXT, allowNull: false},
+            notifyAt: {type: Sequelize.TEXT, allowNull: false},
             wholeDay: {type: Sequelize.BOOLEAN, defaultValue: false},
             end: {type: Sequelize.TEXT, allowNull: true},
             link: {type: Sequelize.STRING, allowNull: true},
