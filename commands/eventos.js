@@ -2,7 +2,7 @@ const Sequelize = require("sequelize");
 const path = require('path');
 
 const moment = require('moment');
-const {OK, WASTE_BASKET} = require("../guess_quizz/emojis");
+const {OK, WRONG, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
 
 const LOG_TAG = path.basename(__filename);
@@ -21,21 +21,19 @@ const TIMESTAMP_INPUT = [
     'D/M HH:mm', 'D/M H:m'
 ];
 const TIMESTAMP_INPUT_ONLY_TIME = ['HH:mm', 'HH'];
-const SPECIAL_TIMESTAMP_INPUTS = new Map([
-    ['manana', () => moment().add(1, 'days')],
-    ['pasado', () => moment().add(2, 'days')]
-]);
+const TIMESTAMP_INPUT_ONLY_DATE = ['DD/MM/YYYY', 'DD/MM/YY', 'D/M/YY', 'D/M'];
 const TIMESTAMP_OUTPUT = TIMESTAMP_INPUT[0];
 
 /**
- * @type {{c: ExecuteCallback, crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback}}
+ * @type {{c: ExecuteCallback, crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback, limpiar: ExecuteCallback}}
  */
 const SUBCOMMANDS = {
     c: async (message, args, context) => {
         let start = moment.invalid();
+        let withHour = false;
         let i = Math.min(4, args.length);
         for (/* nothing */; i > 0; i--) {
-            start = parseInputDate(args.slice(0, i).join(' '));
+            [start, withHour] = parseInputDate(args.slice(0, i).join(' '));
             if (start.isValid()) break;
         }
         if (!start.isValid()) {
@@ -43,9 +41,12 @@ const SUBCOMMANDS = {
             return;
         }
         const title = args.slice(i).join(' ');
+        const notifyAt = defaultNotifyAtFor(start, withHour);
         await registerEvent(context, {
             title,
             start: start.format(TIMESTAMP_FORMAT),
+            wholeDay: !withHour,
+            notifyAt: notifyAt.format(TIMESTAMP_FORMAT),
             channel_id: message.channel.id,
             creator: message.author.id
         });
@@ -73,7 +74,7 @@ const SUBCOMMANDS = {
             return;
         }
         event.title = groupedArgs['titulo'];
-        const cuando = parseInputDate(groupedArgs['cuando']);
+        const [cuando, withHour] = parseInputDate(groupedArgs['cuando']);
         if (!cuando.isValid()) {
             message.reply('`cuando` tiene un formato inválido');
             return;
@@ -83,6 +84,7 @@ const SUBCOMMANDS = {
             return;
         }
         event.start = cuando.format(TIMESTAMP_FORMAT);
+        event.wholeDay = withHour;
         for (const [argKey, objKey] of Object.entries({
             descripcion: 'description',
             link: 'link',
@@ -93,8 +95,14 @@ const SUBCOMMANDS = {
             if (argKey in groupedArgs) event[objKey] = groupedArgs[argKey];
         }
         if ('fin' in groupedArgs) {
-            const fin = parseInputDate(groupedArgs['fin']);
-            if (fin.isValid()) event.end = fin.format(TIMESTAMP_FORMAT);
+            const [fin, endWithHour] = parseInputDate(groupedArgs['fin']);
+            if (endWithHour === withHour && fin.isValid()) event.end = fin.format(TIMESTAMP_FORMAT);
+        }
+        if ('notificar' in groupedArgs) {
+            const [notificar, withHour] = parseInputDate(groupedArgs['notificar']);
+            if (notificar.isValid() && withHour) event.notifyAt = notificar.format(TIMESTAMP_FORMAT);
+        } else {
+            event.notifyAt = defaultNotifyAtFor(cuando, withHour).format(TIMESTAMP_FORMAT);
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
             event.color = groupedArgs.color
@@ -116,16 +124,16 @@ const SUBCOMMANDS = {
         }
         const toSchedule = await Event.findAll({
             where: {channel_id: message.channel.id},
-            order: ['start', 'id'],
+            order: ['notifyAt', 'id'],
             offset: page * PAGE_SIZE,
             limit: PAGE_SIZE
         });
         const embed = new MessageEmbed()
             .setTitle('Alertas de eventos' + (pagesTotal > 1 ? ` (pág. ${page}/${pagesTotal})` : ''))
-            .setDescription('Esta es una lista de los próximos eventos registrados por orden de ocurrencia.')
+            .setDescription('Esta es una lista de los próximos eventos registrados por orden de notificación.')
             .addFields(...toSchedule.map(event => ({
                 name: event.id + ') ' + event.title,
-                value: moment(event.start, TIMESTAMP_FORMAT).format('LLL'),
+                value: moment(event.notifyAt, TIMESTAMP_FORMAT).format('LLL'),
                 inline: true
             })));
         message.channel.send(embed).then();
@@ -161,43 +169,91 @@ const SUBCOMMANDS = {
 // Map by event id
 const scheduledEvents = new Map();
 
+/**
+ * @param {moment.Moment} start
+ * @param {boolean} withHour
+ * @return {moment.Moment}
+ */
+function defaultNotifyAtFor(start, withHour) {
+    if (withHour) return start.clone().subtract(5, 'minutes');
+    else return start.clone().hour(8).minutes(0);
+}
+
 async function registerEvent(context, event) {
     const eventObj = await Event.create(event)
-    const cuando = moment(event.start, TIMESTAMP_FORMAT);
+    const cuando = moment(event.notifyAt, TIMESTAMP_FORMAT);
     scheduleEvent(context, eventObj);
     await sendEmbed(context, eventObj,
-        `Añadido evento *${eventObj.title}* (id ${eventObj.id}) para el ${cuando.format('LLLL')}:`)
+        `Añadido evento *${eventObj.title}* (id ${eventObj.id}) para notificar el ${cuando.format('LLLL')}:`)
 }
 
 /**
  * @param {string} dateIpt
- * @return {moment.Moment}
+ * @return {[moment.Moment, boolean]} first the parsed moment, second whether it includes hour or not
  */
 function parseInputDate(dateIpt) {
-    const normalised = dateIpt.toLowerCase().trim()
+    let normalised = dateIpt.toLowerCase()
         .normalize("NFD")
         .replace(/[^A-Za-z\s]+/g, "")
-        .replace(/\s+/g, " ");
-    if (SPECIAL_TIMESTAMP_INPUTS.has(normalised)) {
-        return SPECIAL_TIMESTAMP_INPUTS.get(normalised)();
-    }
+        .replace(/\s+/g, " ")
+        .trim();
     let parsed = moment(dateIpt, TIMESTAMP_INPUT, true);
-    if (parsed.isValid()) return parsed;
+    if (parsed.isValid()) return [parsed, true];
+    // Only date
+    parsed = moment(dateIpt, TIMESTAMP_INPUT_ONLY_DATE, true);
+    if (parsed.isValid()) {
+        return [parsed, false];
+    }
+    // Only time
     parsed = moment(dateIpt, TIMESTAMP_INPUT_ONLY_TIME, true);
     if (parsed.isValid()) {
         if (parsed.isBefore(moment())) {
             parsed.add(1, 'days');
         }
-        return parsed;
+        return [parsed, true];
     }
-    parsed = moment(normalised, ['dddd', '[el] dddd', '[proximo] dddd', '[el proximo] dddd'], 'es', true);
+
+    // Get hour if at the end
+    const idx = normalised.lastIndexOf(' ');
+    let hour = moment.invalid();
+    if (idx >= 0) {
+        const lastWord = normalised.substring(idx + 1);
+        hour = moment(lastWord, TIMESTAMP_INPUT_ONLY_TIME, true);
+    }
+    if (hour.isValid()) normalised = normalised.substring(0, idx);
+
+    // Remove irrelevant prefixes
+    for (const prefix of ['el ', 'proximo ']) {
+        if (normalised.startsWith(prefix)) {
+            normalised = normalised.substring(prefix.length);
+        }
+    }
+
+    // Remove irrelevant suffixes
+    for (const suffix of [' a las']) {
+        if (normalised.endsWith(suffix)) {
+            normalised = normalised.substring(0, normalised.length - suffix.length);
+        }
+    }
+
+    parsed = moment(normalised, 'dddd', 'es', true);
     if (parsed.isValid()) {
         const wanted = parsed.weekday();
         const today = moment().weekday();
-        if (wanted >= today) return moment().weekday(wanted);
-        else if (wanted < today) return moment().add(1, 'weeks').weekday(wanted);
+        const result = moment().startOf('day');
+        if (wanted >= today) result.weekday(wanted);
+        else if (wanted < today) result.add(1, 'weeks').weekday(wanted);
+
+        if (hour.isValid()) result.hour(hour.hour()).minute(hour.minute());
+        return [result, hour.isValid()];
     }
-    return moment.invalid(); // Invalid
+
+    if (['manana', 'pasado'].includes(normalised)) {
+        const result = moment().add(normalised === 'manana' ? 1 : 2, 'days').startOf('day');
+        if (hour.isValid()) result.hour(hour.hour()).minute(hour.minute());
+        return [result, hour.isValid()];
+    }
+    return [moment.invalid(), false]; // Invalid
 }
 
 /**
@@ -206,11 +262,17 @@ function parseInputDate(dateIpt) {
  * @param event
  */
 async function eventAlert(context, event) {
+    const duration = moment.duration(
+        moment(event.start, TIMESTAMP_FORMAT)
+            .seconds(0).milliseconds(0).diff(
+                moment().seconds(0).milliseconds(0)
+        )
+    ).locale('es');
     await sendEmbed(context, event,
-        `Event in ${moment(event.start, TIMESTAMP_FORMAT).diff(moment(), 'minutes')} minutes:`);
+        `Evento ${duration.humanize(true)}:`);
     const id = event.id;
-    const scheduled = scheduledEvents.has(id);
     await event.destroy();
+    const scheduled = scheduledEvents.has(id);
     if (scheduled) {
         clearTimeout(scheduledEvents.get(id));
         scheduledEvents.delete(id);
@@ -219,16 +281,16 @@ async function eventAlert(context, event) {
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
-    const start = moment(event.start, TIMESTAMP_FORMAT).subtract(5, 'minutes');
+    const notify = moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
     // Ignore events for more than 6h after this
     // (scheduling should be repeated in less than 6h)
-    if (start.isAfter(moment().add(6, 'hours'))) return;
-    if (start.isAfter(now)) {
+    if (notify.isAfter(moment().add(6, 'hours'))) return;
+    if (notify.isAfter(now)) {
         if (scheduledEvents.has(event.id)) return;
-        scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
-        console.log(LOG_TAG, 'event scheduled', event.title, start.format(),
-            `(${start.diff(now, 'minutes', true).toFixed(2)}mins.)`);
+        scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), notify.diff(now)));
+        console.log(LOG_TAG, 'event scheduled', event.title, notify.format(),
+            `(${notify.diff(now, 'minutes', true).toFixed(2)}mins.)`);
     } else if (notifyIfPassed) {
         eventAlert(context, event).then();
     }
@@ -241,14 +303,14 @@ async function scheduleNextEvents(context) {
 
     const toSchedule = await Event.findAll({
         where: {
-            start: {
+            notifyAt: {
                 [Sequelize.Op.lte]: moment().add(6, 'hours').toDate()
             }
         }
     });
     toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
     const deleted = await Event.destroy({
-        where: {start: {[Sequelize.Op.lte]: moment().toDate()}}
+        where: {notifyAt: {[Sequelize.Op.lte]: moment().toDate()}}
     });
     // Should be 0 but just in case
     if (deleted) console.log(LOG_TAG, `deleted ${deleted} events (passed).`);
@@ -275,7 +337,11 @@ async function sendEmbed(context, event, messageText) {
     const embed = new MessageEmbed()
         .setTitle(event.title)
         .setAuthor(creator.username, creator.defaultAvatarURL)
-        .setFooter(end ? `${start.format('lll')} - ${end.format('lll')}` : start.format('LLLL'));
+        .setFooter(end ? `${
+            start.format(event.wholeDay ? 'll' : 'lll')
+        } - ${
+            end.format(event.wholeDay ? 'll' : 'lll')
+        }` : start.format(event.wholeDay ? 'LL' : 'LLLL'));
     if (event.description) embed.setDescription(event.description);
     if (event.link) embed.setURL(event.link);
     if (event.color) embed.setColor(parseInt(event.color, 16));
@@ -299,6 +365,8 @@ module.exports = {
             title: {type: Sequelize.STRING, allowNull: false},
             description: {type: Sequelize.STRING, allowNull: true},
             start: {type: Sequelize.TEXT, allowNull: false},
+            notifyAt: {type: Sequelize.TEXT, allowNull: false},
+            wholeDay: {type: Sequelize.BOOLEAN, defaultValue: false},
             end: {type: Sequelize.TEXT, allowNull: true},
             link: {type: Sequelize.STRING, allowNull: true},
             location: {type: Sequelize.STRING, allowNull: true},

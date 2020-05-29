@@ -59,7 +59,7 @@ class Bot {
             this._commandMgr.registerAndInitCommands(this.config.commandsFolder);
 
             // Syncronize models
-            await this.sequelize.sync();
+            await this.sequelize.sync({alter: true});
             console.log('Sequelize models sync done, login...');
 
             await this.client.login(this.config.token);
