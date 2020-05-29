@@ -163,6 +163,21 @@ const SUBCOMMANDS = {
         }
         console.log(LOG_TAG, 'event deleted (user request): ', event.title, scheduled ? '(was scheduled)' : '(not scheduled)');
         await message.react(WASTE_BASKET);
+    },
+    limpiar: async (message, args, context) => {
+        if (message.author.id !== '424966681778061335') {
+            message.reply('no tienes permiso para iniciar tal cruzada, amigo.');
+            return;
+        }
+        const deleted = await Event.destroy({
+            where: {channel_id: message.channel.id}
+        });
+        for (const key of scheduledEvents.keys()) {
+            clearTimeout(scheduledEvents.get(key));
+            scheduledEvents.delete(key);
+        }
+        await scheduleNextEvents(context, true);
+        console.log(LOG_TAG, 'all events for one channel deleted (user request)');
     }
 };
 
@@ -230,7 +245,7 @@ function parseInputDate(dateIpt) {
     }
 
     // Remove irrelevant suffixes
-    for (const suffix of [' a las']) {
+    for (const suffix of [' a las', ' a la']) {
         if (normalised.endsWith(suffix)) {
             normalised = normalised.substring(0, normalised.length - suffix.length);
         }
@@ -265,7 +280,7 @@ async function eventAlert(context, event) {
     const duration = moment.duration(
         moment(event.start, TIMESTAMP_FORMAT)
             .seconds(0).milliseconds(0).diff(
-                moment().seconds(0).milliseconds(0)
+            moment().seconds(0).milliseconds(0)
         )
     ).locale('es');
     await sendEmbed(context, event,
@@ -296,10 +311,12 @@ function scheduleEvent(context, event, notifyIfPassed) {
     }
 }
 
-async function scheduleNextEvents(context) {
+async function scheduleNextEvents(context, doNotRepeat) {
     console.log(LOG_TAG, 'scheduling events for next 6h')
     // Repeat in 6 hours
-    setTimeout(scheduleNextEvents.bind(null, context), 6 * 60 * 60 * 1000);
+    if (!doNotRepeat) {
+        setTimeout(scheduleNextEvents.bind(null, context), 6 * 60 * 60 * 1000);
+    }
 
     const toSchedule = await Event.findAll({
         where: {
