@@ -5,7 +5,7 @@ const moment = require('moment');
 const {OK, WRONG, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
 
-const LOG_TAG = path.basename(__filename);
+const LOG_TAG = `[${path.basename(__filename)}]`;
 
 /**
  * Saves the events so they will not be lost if there is a crash or whatever
@@ -304,6 +304,7 @@ async function eventAlert(context, event) {
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
+    console.log(LOG_TAG, 'scheduleEvent', event);
     const notify = moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
     // Ignore events for more than 6h after this
@@ -320,7 +321,6 @@ function scheduleEvent(context, event, notifyIfPassed) {
 }
 
 async function scheduleNextEvents(context, doNotRepeat) {
-    console.log(LOG_TAG, 'scheduling events for next 6h')
     // Repeat in 6 hours
     if (!doNotRepeat) {
         setTimeout(scheduleNextEvents.bind(null, context), 6 * 60 * 60 * 1000);
@@ -333,6 +333,7 @@ async function scheduleNextEvents(context, doNotRepeat) {
             }
         }
     });
+    console.log(LOG_TAG, `scheduling events for next 6h (${toSchedule.length} events)`);
     toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
     const deleted = await Event.destroy({
         where: {notifyAt: {[Sequelize.Op.lte]: moment().toDate()}}
