@@ -84,7 +84,7 @@ const SUBCOMMANDS = {
             return;
         }
         event.start = cuando.format(TIMESTAMP_FORMAT);
-        event.wholeDay = withHour;
+        event.wholeDay = !withHour;
         for (const [argKey, objKey] of Object.entries({
             descripcion: 'description',
             link: 'link',
