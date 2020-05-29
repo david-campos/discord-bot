@@ -1,8 +1,11 @@
 const Sequelize = require("sequelize");
+const path = require('path');
 
 const moment = require('moment');
 const {OK, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
+
+const LOG_TAG = path.basename(__filename);
 
 /**
  * Saves the events so they will not be lost if there is a crash or whatever
@@ -11,7 +14,19 @@ class Event extends Sequelize.Model {
 }
 
 const TIMESTAMP_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
-const TIMESTAMP_INPUT = 'DD/MM/YYYY HH:mm';
+const TIMESTAMP_INPUT = [
+    'DD/MM/YYYY HH:mm', 'DD/MM/YYYY H:m',
+    'DD/MM/YY HH:mm', 'DD/MM/YY H:m',
+    'D/M/YY HH:mm', 'D/M/YY H:m',
+    'D/M HH:mm', 'D/M H:m'
+];
+const TIMESTAMP_INPUT_ONLY_TIME = ['HH:mm', 'HH'];
+const SPECIAL_TIMESTAMP_INPUTS = new Map([
+    ['manana', () => moment().add(1, 'days')],
+    ['pasado', () => moment().add(2, 'days')]
+]);
+const TIMESTAMP_OUTPUT = TIMESTAMP_INPUT[0];
+
 /**
  * @type {{crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback}}
  */
@@ -25,7 +40,7 @@ const SUBCOMMANDS = {
         let currentKey = null;
         for (const arg of args) {
             if (arg.startsWith('-')) {
-                if (currentKey) groupedArgs[currentKey] = groupedArgs[currentKey].join(' ');
+                if (currentKey) groupedArgs[currentKey] = groupedArgs[currentKey].join(' ').trim();
                 currentKey = arg.substring(1).toLowerCase().trim();
                 groupedArgs[currentKey] = [];
             } else if (currentKey) {
@@ -38,13 +53,13 @@ const SUBCOMMANDS = {
             return;
         }
         event.title = groupedArgs['titulo'];
-        const cuando = moment(groupedArgs['cuando'], TIMESTAMP_INPUT, true);
+        const cuando = parseInputDate(groupedArgs['cuando']);
         if (!cuando.isValid()) {
             message.reply('`cuando` tiene un formato inválido');
             return;
         }
         if (cuando.clone().subtract(10, 'minutes').isSameOrBefore(moment())) {
-            message.reply(`el evento sería en menos de diez minutos! (${cuando.format(TIMESTAMP_INPUT)})`);
+            message.reply(`el evento sería en menos de diez minutos! (${cuando.format(TIMESTAMP_OUTPUT)})`);
             return;
         }
         event.start = cuando.format(TIMESTAMP_FORMAT);
@@ -58,7 +73,7 @@ const SUBCOMMANDS = {
             if (argKey in groupedArgs) event[objKey] = groupedArgs[argKey];
         }
         if ('fin' in groupedArgs) {
-            const fin = moment(groupedArgs['fin'], TIMESTAMP_INPUT, true)
+            const fin = parseInputDate(groupedArgs['fin']);
             if (fin.isValid()) event.end = fin.format(TIMESTAMP_FORMAT);
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
@@ -66,7 +81,8 @@ const SUBCOMMANDS = {
         const eventObj = await Event.create(event)
         await message.react(OK);
         scheduleEvent(context, eventObj);
-        await sendEmbed(context, eventObj)
+        await sendEmbed(context, eventObj,
+            `Añadido evento *${eventObj.title}* para el ${cuando.format(TIMESTAMP_OUTPUT)} (id ${eventObj.id}):`)
     },
     mostrar: async (message, args, context) => {
         const PAGE_SIZE = 25;
@@ -78,8 +94,8 @@ const SUBCOMMANDS = {
         }
         const page = args[0] && !isNaN(parseInt(args[0], 10)) ? parseInt(args[0], 10) - 1 : 0;
         if (page >= pagesTotal) {
-           message.reply(`página inválida (sólo hay ${pagesTotal} páginas).`);
-           return;
+            message.reply(`página inválida (sólo hay ${pagesTotal} páginas).`);
+            return;
         }
         const toSchedule = await Event.findAll({
             where: {channel_id: message.channel.id},
@@ -120,7 +136,7 @@ const SUBCOMMANDS = {
             clearTimeout(scheduledEvents.get(id));
             scheduledEvents.delete(id);
         }
-        console.log('EVENT DELETED (user request): ', event.title, scheduled ? 'was scheduled' : 'not scheduled');
+        console.log(LOG_TAG, 'event deleted (user request): ', event.title, scheduled ? '(was scheduled)' : '(not scheduled)');
         await message.react(WASTE_BASKET);
     }
 };
@@ -129,12 +145,44 @@ const SUBCOMMANDS = {
 const scheduledEvents = new Map();
 
 /**
+ * @param {string} dateIpt
+ * @return {moment.Moment}
+ */
+function parseInputDate(dateIpt) {
+    const normalised = dateIpt.toLowerCase().trim()
+        .normalize("NFD")
+        .replace(/[^A-Za-z\s]+/g, "")
+        .replace(/\s+/g, " ");
+    if (SPECIAL_TIMESTAMP_INPUTS.has(normalised)) {
+        return SPECIAL_TIMESTAMP_INPUTS.get(normalised)();
+    }
+    let parsed = moment(dateIpt, TIMESTAMP_INPUT, true);
+    if (parsed.isValid()) return parsed;
+    parsed = moment(dateIpt, TIMESTAMP_INPUT_ONLY_TIME, true);
+    if (parsed.isValid()) {
+        if (parsed.isBefore(moment())) {
+            parsed.add(1, 'days');
+        }
+        return parsed;
+    }
+    parsed = moment(normalised, ['dddd', '[el] dddd', '[proximo] dddd', '[el proximo] dddd'], 'es', true);
+    if (parsed.isValid()) {
+        const wanted = parsed.weekday();
+        const today = moment().weekday();
+        if (wanted >= today) return moment().weekday(wanted);
+        else if (wanted < today) return moment().add(1, 'weeks').weekday(wanted);
+    }
+    return moment.invalid(); // Invalid
+}
+
+/**
  * Alerts about an event to the corresponding channel!
  * @param {Bot} context
  * @param event
  */
 async function eventAlert(context, event) {
-    await sendEmbed(context, event);
+    await sendEmbed(context, event,
+        `Event in ${moment(event.start, TIMESTAMP_FORMAT).diff(moment(), 'minutes')} minutes:`);
     const id = event.id;
     const scheduled = scheduledEvents.has(id);
     await event.destroy();
@@ -142,41 +190,65 @@ async function eventAlert(context, event) {
         clearTimeout(scheduledEvents.get(id));
         scheduledEvents.delete(id);
     }
-    console.log('EVENT DELETED: ', event.title, scheduled ? 'was scheduled' : 'not scheduled');
+    console.log(LOG_TAG, 'event deleted (notified): ', event.title, scheduled ? '(was scheduled)' : '(not scheduled)');
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
     const start = moment(event.start, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
+    // Ignore events for more than one day after this
+    // (scheduling should be repeated each 6h, so 13 should be enough)
+    if (start.isAfter(moment().add(13, 'hours'))) return;
     if (start.isAfter(now)) {
+        if (scheduledEvents.has(event.id)) return;
         scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), start.diff(now)));
-        console.log('EVENT SCHEDULED: ', event.title, start.format(),
-            `(${start.diff(now, 'minutes', true)}mins.)`);
+        console.log(LOG_TAG, 'event scheduled', event.title, start.format(),
+            `(${start.diff(now, 'minutes', true).toFixed(2)}mins.)`);
     } else if (notifyIfPassed) {
         eventAlert(context, event).then();
     }
 }
 
+async function scheduleNextDayEvents(context) {
+    console.log(LOG_TAG, 'scheduling events for next 6h')
+    // Repeat in 6 hours
+    setTimeout(scheduleNextDayEvents.bind(null, context), 6 * 60 * 60 * 1000);
+
+    const toSchedule = await Event.findAll({
+        where: {
+            start: {
+                [Sequelize.Op.lte]: moment().add(6, 'hours').toDate()
+            }
+        }
+    });
+    toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
+    const deleted = await Event.destroy({
+        where: {start: {[Sequelize.Op.lte]: moment().toDate()}}
+    });
+    // Should be 0 but just in case
+    if (deleted) console.log(LOG_TAG, `deleted ${deleted} events (passed).`);
+}
+
 /**
  * @param {Bot} context
  * @param event
- * @param [preTitle]
+ * @param {string} [messageText]
  * @return {Promise<void>}
  */
-async function sendEmbed(context, event, preTitle) {
+async function sendEmbed(context, event, messageText) {
     /**
      * @type {module:"discord.js".TextChannel|module:"discord.js".DMChannel}
      */
     const channel = await context.client.channels.fetch(event.channel_id);
     if (!['text', 'dm'].includes(channel.type)) {
-        console.error(`Invalid channel type for event ${event.id}: ${channel.type}`)
+        console.error(LOG_TAG, `invalid channel type for event ${event.id}: ${channel.type}`)
         return;
     }
     const creator = await context.client.users.fetch(event.creator);
     const start = moment(event.start, TIMESTAMP_FORMAT);
     const end = event.end ? moment(event.end, TIMESTAMP_FORMAT) : null;
     const embed = new MessageEmbed()
-        .setTitle((preTitle ? preTitle : '') + event.title)
+        .setTitle(event.title)
         .setAuthor(creator.username, creator.defaultAvatarURL)
         .setFooter(end ? `${start.format('lll')} - ${end.format('lll')}` : start.format('LLLL'));
     if (event.description) embed.setDescription(event.description);
@@ -184,7 +256,11 @@ async function sendEmbed(context, event, preTitle) {
     if (event.color) embed.setColor(parseInt(event.color, 16));
     if (event.location) embed.setFooter(embed.footer.text + ' (' + event.location + ')');
     if (event.imageUrl) embed.setImage(event.imageUrl);
-    await channel.send(embed);
+    if (messageText) {
+        await channel.send(messageText, embed);
+    } else {
+        await channel.send(embed);
+    }
 }
 
 /**
@@ -206,18 +282,7 @@ module.exports = {
         }, {sequelize: context.sequelize, timestamps: false});
     },
     ready: async function (context) {
-        const deleted = await Event.destroy({
-            where: {start: {[Sequelize.Op.lte]: moment().toDate()}}
-        });
-        if (deleted) console.log(`DELETED ${deleted} EVENTS`);
-        const toSchedule = await Event.findAll({
-            where: {
-                start: {
-                    [Sequelize.Op.gt]: moment().toDate()
-                }
-            }
-        });
-        toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
+        await scheduleNextDayEvents(context);
     },
     commands: [{
         name: 'eventos',
