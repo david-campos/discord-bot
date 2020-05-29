@@ -28,9 +28,29 @@ const SPECIAL_TIMESTAMP_INPUTS = new Map([
 const TIMESTAMP_OUTPUT = TIMESTAMP_INPUT[0];
 
 /**
- * @type {{crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback}}
+ * @type {{c: ExecuteCallback, crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback}}
  */
 const SUBCOMMANDS = {
+    c: async (message, args, context) => {
+        let start = moment.invalid();
+        let i = Math.min(4, args.length);
+        for (/* nothing */; i > 0; i--) {
+            start = parseInputDate(args.slice(0, i).join(' '));
+            if (start.isValid()) break;
+        }
+        if (!start.isValid()) {
+            message.reply('la fecha / hora tiene un formato inválido');
+            return;
+        }
+        const title = args.slice(i).join(' ');
+        await registerEvent(context, {
+            title,
+            start: start.format(TIMESTAMP_FORMAT),
+            channel_id: message.channel.id,
+            creator: message.author.id
+        });
+        await message.react(OK);
+    },
     crear: async (message, args, context) => {
         const event = {
             channel_id: message.channel.id,
@@ -78,11 +98,8 @@ const SUBCOMMANDS = {
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
             event.color = groupedArgs.color
-        const eventObj = await Event.create(event)
+        await registerEvent(context, event);
         await message.react(OK);
-        scheduleEvent(context, eventObj);
-        await sendEmbed(context, eventObj,
-            `Añadido evento *${eventObj.title}* para el ${cuando.format(TIMESTAMP_OUTPUT)} (id ${eventObj.id}):`)
     },
     mostrar: async (message, args, context) => {
         const PAGE_SIZE = 25;
@@ -143,6 +160,14 @@ const SUBCOMMANDS = {
 
 // Map by event id
 const scheduledEvents = new Map();
+
+async function registerEvent(context, event) {
+    const eventObj = await Event.create(event)
+    const cuando = moment(event.start, TIMESTAMP_FORMAT);
+    scheduleEvent(context, eventObj);
+    await sendEmbed(context, eventObj,
+        `Añadido evento *${eventObj.title}* (id ${eventObj.id}) para el ${cuando.format('LLLL')}:`)
+}
 
 /**
  * @param {string} dateIpt
