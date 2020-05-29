@@ -31,7 +31,7 @@ const SUBCOMMANDS = {
     c: async (message, args, context) => {
         let start = moment.invalid();
         let withHour = false;
-        let i = Math.min(4, args.length);
+        let i = Math.min(8, args.length);
         for (/* nothing */; i > 0; i--) {
             [start, withHour] = parseInputDate(args.slice(0, i).join(' '));
             if (start.isValid()) break;
