@@ -20,7 +20,7 @@ const TIMESTAMP_INPUT = [
     'D/M/YY HH:mm', 'D/M/YY H:m',
     'D/M HH:mm', 'D/M H:m'
 ];
-const TIMESTAMP_INPUT_ONLY_TIME = ['HH:mm', 'HH'];
+const TIMESTAMP_INPUT_ONLY_TIME = ['HH:mm', 'H:mm', 'H:m', 'HH', 'H'];
 const TIMESTAMP_INPUT_ONLY_DATE = ['DD/MM/YYYY', 'DD/MM/YY', 'D/M/YY', 'D/M'];
 const TIMESTAMP_OUTPUT = TIMESTAMP_INPUT[0];
 
@@ -194,7 +194,7 @@ async function registerEvent(context, event) {
 function parseInputDate(dateIpt) {
     let normalised = dateIpt.toLowerCase()
         .normalize("NFD")
-        .replace(/[^A-Za-z\s]+/g, "")
+        .replace(/[^A-Za-z0-9\s]+/g, "")
         .replace(/\s+/g, " ")
         .trim();
     let parsed = moment(dateIpt, TIMESTAMP_INPUT, true);
