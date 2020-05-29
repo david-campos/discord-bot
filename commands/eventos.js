@@ -209,7 +209,7 @@ async function registerEvent(context, event) {
 function parseInputDate(dateIpt) {
     let normalised = dateIpt.toLowerCase()
         .normalize("NFD")
-        .replace(/[^A-Za-z0-9\s]+/g, "")
+        .replace(/[^A-Za-z0-9:\s]+/g, "")
         .replace(/\s+/g, " ")
         .trim();
     let parsed = moment(dateIpt, TIMESTAMP_INPUT, true);
