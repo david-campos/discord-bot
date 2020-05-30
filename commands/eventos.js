@@ -40,8 +40,12 @@ const SUBCOMMANDS = {
             message.reply('la fecha / hora tiene un formato inválido');
             return;
         }
-        const title = args.slice(i).join(' ');
         const notifyAt = defaultNotifyAtFor(start, withHour);
+        if (notifyAt.isBefore(moment().add(30, 'seconds'))) {
+            message.reply('se tendría que notificar en menos de 30 segundos!');
+            return;
+        }
+        const title = args.slice(i).join(' ');
         await registerEvent(context, {
             title,
             start: start.format(TIMESTAMP_FORMAT),
@@ -79,10 +83,6 @@ const SUBCOMMANDS = {
             message.reply('`cuando` tiene un formato inválido');
             return;
         }
-        if (cuando.clone().subtract(10, 'minutes').isSameOrBefore(moment())) {
-            message.reply(`el evento sería en menos de diez minutos! (${cuando.format(TIMESTAMP_OUTPUT)})`);
-            return;
-        }
         event.start = cuando.format(TIMESTAMP_FORMAT);
         event.wholeDay = !withHour;
         for (const [argKey, objKey] of Object.entries({
@@ -108,8 +108,8 @@ const SUBCOMMANDS = {
         } else {
             event.notifyAt = defaultNotifyAtFor(cuando, withHour).format(TIMESTAMP_FORMAT);
         }
-        if (moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(10, 'minutes').isSameOrBefore(moment())) {
-            message.reply(`el evento se notificaría en menos de diez minutos! (${cuando.format(TIMESTAMP_OUTPUT)})`);
+        if (moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(30, 'seconds').isBefore(moment())) {
+            message.reply(`el evento se notificaría en menos de 30 segundos! (${cuando.format(TIMESTAMP_OUTPUT)})`);
             return;
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
@@ -157,19 +157,13 @@ const SUBCOMMANDS = {
             return;
         }
         const event = await Event.findOne({
-            where: {channel_id: message.channel.id, id},
+            where: {channel_id: message.channel.id, id}
         });
         if (!event) {
             message.reply('no se ha encontrado el evento');
             return;
         }
-        const scheduled = scheduledEvents.has(id);
-        await event.destroy();
-        if (scheduled) {
-            clearTimeout(scheduledEvents.get(id));
-            scheduledEvents.delete(id);
-        }
-        console.log(LOG_TAG, 'event deleted (user request): ', event.title, scheduled ? '(was scheduled)' : '(not scheduled)');
+        await destroyEvent(event);
         await message.react(WASTE_BASKET);
     },
     limpiar: async (message, args, context) => {
@@ -207,7 +201,21 @@ async function registerEvent(context, event) {
     const cuando = moment(event.notifyAt, TIMESTAMP_FORMAT);
     scheduleEvent(context, eventObj);
     await sendEmbed(context, eventObj,
-        `Añadido evento *${eventObj.title}* (id ${eventObj.id}) para notificar el ${cuando.format('LLLL')}:`)
+        `Añadido evento *${eventObj.title}* (id ${eventObj.id}) para notificar el ${cuando.format('LLLL')}:`);
+}
+
+async function destroyEvent(event, reason) {
+    const id = event.id;
+    await event.destroy();
+    const scheduled = scheduledEvents.has(id);
+    if (scheduled) {
+        clearTimeout(scheduledEvents.get(id));
+        scheduledEvents.delete(id);
+    }
+    console.log(LOG_TAG,
+        `event deleted${reason ? `(${reason})` : ''}: `,
+        event.title,
+        scheduled ? '(was scheduled)' : '(not scheduled)');
 }
 
 /**
@@ -293,18 +301,10 @@ async function eventAlert(context, event) {
     ).locale('es');
     await sendEmbed(context, event,
         `Evento ${duration.humanize(true)}:`);
-    const id = event.id;
-    await event.destroy();
-    const scheduled = scheduledEvents.has(id);
-    if (scheduled) {
-        clearTimeout(scheduledEvents.get(id));
-        scheduledEvents.delete(id);
-    }
-    console.log(LOG_TAG, 'event deleted (notified): ', event.title, scheduled ? '(was scheduled)' : '(not scheduled)');
+    await destroyEvent(event);
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
-    console.log(LOG_TAG, 'scheduleEvent', event);
     const notify = moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(5, 'minutes');
     const now = moment();
     // Ignore events for more than 6h after this
@@ -317,6 +317,10 @@ function scheduleEvent(context, event, notifyIfPassed) {
             `(${notify.diff(now, 'minutes', true).toFixed(2)}mins.)`);
     } else if (notifyIfPassed) {
         eventAlert(context, event).then();
+        console.log(LOG_TAG, 'event alerted in scheduling');
+    } else {
+        destroyEvent(event).then();
+        console.log(LOG_TAG, 'event dismissed in scheduling');
     }
 }
 
