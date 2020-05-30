@@ -164,7 +164,7 @@ const SUBCOMMANDS = {
             message.reply('no se ha encontrado el evento');
             return;
         }
-        await destroyEvent(event);
+        await destroyEvent(event, 'user request');
         await message.react(WASTE_BASKET);
     },
     limpiar: async (message, args, context) => {
@@ -214,8 +214,8 @@ async function destroyEvent(event, reason) {
         scheduledEvents.delete(id);
     }
     logger.log(
-        `event deleted${reason ? `(${reason})` : ''}: `,
-        event.title,
+        `event deleted${reason ? `(${reason})` : ''}:`,
+        event.id, event.title,
         scheduled ? '(was scheduled)' : '(not scheduled)');
 }
 
@@ -302,7 +302,7 @@ async function eventAlert(context, event) {
     ).locale('es');
     await sendEmbed(context, event,
         `Evento ${duration.humanize(true)}:`);
-    await destroyEvent(event);
+    await destroyEvent(event, 'notified');
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
@@ -314,14 +314,14 @@ function scheduleEvent(context, event, notifyIfPassed) {
     if (notify.isAfter(now)) {
         if (scheduledEvents.has(event.id)) return;
         scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), notify.diff(now)));
-        logger.log('event scheduled', event.title, notify.format(),
+        logger.log('event scheduled', event.id, event.title, notify.format(),
             `(${notify.diff(now, 'minutes', true).toFixed(2)}mins.)`);
     } else if (notifyIfPassed) {
         eventAlert(context, event).then();
-        logger.log('event alerted in scheduling', event.title, notify.format());
+        logger.log('event alerted in scheduling', event.id, event.title, notify.format());
     } else {
-        destroyEvent(event).then();
-        logger.log('event dismissed in scheduling', event.title, notify.format());
+        destroyEvent(event, 'dimissed').then();
+        logger.log('event dismissed in scheduling', event.id, event.title, notify.format());
     }
 }
 
