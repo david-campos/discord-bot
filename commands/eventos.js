@@ -306,7 +306,7 @@ async function eventAlert(context, event) {
 }
 
 function scheduleEvent(context, event, notifyIfPassed) {
-    const notify = moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(5, 'minutes');
+    const notify = moment(event.notifyAt, TIMESTAMP_FORMAT);
     const now = moment();
     // Ignore events for more than 6h after this
     // (scheduling should be repeated in less than 6h)
