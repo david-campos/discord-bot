@@ -2,10 +2,11 @@ const Sequelize = require("sequelize");
 const path = require('path');
 
 const moment = require('moment');
+const {Logger} = require("../logging/logger");
 const {OK, WRONG, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
 
-const LOG_TAG = `[${path.basename(__filename)}]`;
+const logger = new Logger(path.basename(__filename));
 
 /**
  * Saves the events so they will not be lost if there is a crash or whatever
@@ -179,7 +180,7 @@ const SUBCOMMANDS = {
             scheduledEvents.delete(key);
         }
         await scheduleNextEvents(context, true);
-        console.log(LOG_TAG, 'all events for one channel deleted (user request)');
+        logger.log('all events for one channel deleted (user request)');
     }
 };
 
@@ -212,7 +213,7 @@ async function destroyEvent(event, reason) {
         clearTimeout(scheduledEvents.get(id));
         scheduledEvents.delete(id);
     }
-    console.log(LOG_TAG,
+    logger.log(
         `event deleted${reason ? `(${reason})` : ''}: `,
         event.title,
         scheduled ? '(was scheduled)' : '(not scheduled)');
@@ -313,14 +314,14 @@ function scheduleEvent(context, event, notifyIfPassed) {
     if (notify.isAfter(now)) {
         if (scheduledEvents.has(event.id)) return;
         scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), notify.diff(now)));
-        console.log(LOG_TAG, 'event scheduled', event.title, notify.format(),
+        logger.log('event scheduled', event.title, notify.format(),
             `(${notify.diff(now, 'minutes', true).toFixed(2)}mins.)`);
     } else if (notifyIfPassed) {
         eventAlert(context, event).then();
-        console.log(LOG_TAG, 'event alerted in scheduling');
+        logger.log('event alerted in scheduling', event.title, notify.format());
     } else {
         destroyEvent(event).then();
-        console.log(LOG_TAG, 'event dismissed in scheduling');
+        logger.log('event dismissed in scheduling', event.title, notify.format());
     }
 }
 
@@ -337,13 +338,13 @@ async function scheduleNextEvents(context, doNotRepeat) {
             }
         }
     });
-    console.log(LOG_TAG, `scheduling events for next 6h (${toSchedule.length} events)`);
+    logger.log(`scheduling events for next 6h (${toSchedule.length} events)`);
     toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
     const deleted = await Event.destroy({
         where: {notifyAt: {[Sequelize.Op.lte]: moment().format(TIMESTAMP_FORMAT)}}
     });
     // Should be 0 but just in case
-    if (deleted) console.log(LOG_TAG, `deleted ${deleted} events (passed).`);
+    if (deleted) logger.log(`deleted ${deleted} events (passed).`);
 }
 
 /**
@@ -358,7 +359,7 @@ async function sendEmbed(context, event, messageText) {
      */
     const channel = await context.client.channels.fetch(event.channel_id);
     if (!['text', 'dm'].includes(channel.type)) {
-        console.error(LOG_TAG, `invalid channel type for event ${event.id}: ${channel.type}`)
+        logger.error(`invalid channel type for event ${event.id}: ${channel.type}`)
         return;
     }
     const creator = await context.client.users.fetch(event.creator);
