@@ -193,8 +193,7 @@ const SUBCOMMAND_ARGS = [
             {name: 'c', description: 'usado para crear un evento de forma rápida', isLiteral: true},
             {
                 name: 'fecha',
-                description: 'al crear un evento de forma rápida, la fecha y hora de comienzo del evento',
-                format: 'formato de fechas más abajo'
+                description: 'al crear un evento de forma rápida, la fecha y hora de comienzo del evento'
             },
             {name: 'titulo', description: 'al crear un evento de forma rápida, título del evento'}
         ]
@@ -202,12 +201,16 @@ const SUBCOMMAND_ARGS = [
     {
         subcommand: 'Creación de eventos', description: 'Crea un evento', args: [
             {name: 'crear', isLiteral: true},
-            {
-                name: 'fecha',
-                description: 'al crear un evento de forma rápida, la fecha y hora de comienzo del evento',
-                format: 'formato de fechas más abajo'
-            },
-            {name: 'titulo', description: 'al crear un evento de forma rápida, título del evento'}
+            {name: '-titulo titulo', description: 'indica el título para el evento'},
+            {name: '-cuando fecha', description: 'indica la fecha y hora de inicio'},
+            {name: '-fin fecha', description: 'indica la fecha y hora de finalización', optional: true},
+            {name: '-descripcion descripcion', description: 'descripción del evento', optional: true},
+            {name: '-color color', description: 'color del evento', optional: true, format: 'hexadecimal, 6 dígitos'},
+            {name: '-link link', description: 'link para abrir al clickar el evento', optional: true, format: 'url completa'},
+            {name: '-lugar lugar', description: 'lugar indicado en el pie del evento', optional: true},
+            {name: '-imagen url', description: 'url de la imagen del evento', optional: true, format: 'url completa'},
+            {name: '-notificar fecha', description: 'fecha y hora de notificación del evento', optional: true,
+                defaultValue: '5 minutos antes o el mismo día a las 8:00'}
         ]
     },
     {
