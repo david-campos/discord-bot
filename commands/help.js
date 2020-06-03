@@ -73,7 +73,7 @@ function usageDescription(command) {
             const lines = [definition, subcommand.description];
             if (subcommand.args.length !== 1 || !subcommand.args[0].isLiteral) {
                 lines.push('Detalles:');
-                lines.push(argumentUsage(subcommand.args, 0));
+                lines.push(argumentUsage(subcommand.args, 1));
             }
             return {
                 name: subcommand.subcommand,
@@ -90,6 +90,7 @@ function usageDescription(command) {
     // noinspection JSValidateTypes
     return fields;
 }
+
 
 module.exports = {
     commands: [{
@@ -158,7 +159,8 @@ module.exports = {
                             .addFields(fields);
                         message.channel.send(embed).then();
                     } else {
-                        message.reply(`${args[0]}? WTF? No conozco ese comando, pelma.`);
+                        message.reply(`${args[0]}? WTF? No conozco ese comando, pelma.\n`
+                            + `Quizás quisiste decir: ${context.didYouMean(args[0]).slice(0, 5).map(w => `\`${w}\``).join(', ')}`);
                     }
                 }
             } catch (err) {

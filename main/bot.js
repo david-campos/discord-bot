@@ -103,7 +103,8 @@ class Bot {
             }
         } catch (error) {
             if (!this.config.silentMode) {
-                msg.reply(`no conozco el comando "${command}"`)
+                msg.reply(`no conozco el comando "${command}".\n`
+                    +`Quizás quisiste decir: ${this.didYouMean(command).slice(0, 3).map(w => `\`${w}\``).join(', ')}`)
                     .then(); // Ignore
             }
         }
@@ -129,6 +130,14 @@ class Bot {
      */
     getCommandList() {
          return this._commandMgr.getCommandList();
+    }
+
+    /**
+     * @param {string} command
+     * @return {string[]}
+     */
+    didYouMean(command) {
+        return this._commandMgr.didYouMean(command);
     }
 }
 

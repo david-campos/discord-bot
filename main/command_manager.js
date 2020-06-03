@@ -1,5 +1,6 @@
 const Discord = require('discord.js');
 const fs = require('fs');
+const levenshtein = require('js-levenshtein');
 
 /**
  * @callback ExecuteCallback
@@ -110,6 +111,29 @@ class CommandManager {
      */
     getCommandList() {
         return this._commands.array();
+    }
+
+    /**
+     * Given an inteneded command gives the command list sorted by "distance" (closest to farthest)
+     * @param {string} command
+     * @return {string[]}
+     */
+    didYouMean(command) {
+        const allCommands = this.getCommandList().filter(cmd => !cmd.hidden).map(c => c.name);
+        const splittedCommand = command.split('-');
+        const dist = word => {
+            const subw = word.split('-');
+            return splittedCommand
+                .map(w => Math.min(...subw.map(c => levenshtein(c, w))))
+                .reduce((p, c) => p + c);
+        };
+        allCommands.sort((a, b) => {
+            const distA = dist(a);
+            const distB = dist(b);
+            if (distA !== distB) return distA - distB;
+            else return a.localeCompare(b);
+        });
+        return allCommands;
     }
 }
 
