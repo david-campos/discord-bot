@@ -297,31 +297,34 @@ module.exports = {
         shortDescription: 'Juego de preguntas (en inglés)',
         description: 'Creates a new game of trivia questions (using opentdb.com), '
             + 'joins the current proposed game or starts the game.',
-        usage: [{
-            group: 'choice', optional: true, args: [
-                {
+        usage: [
+            {
+                subcommand: 'Create', description: 'Create a new game', args: [{
                     name: 'nQ',
                     description: 'number of questions for the game to propose (when proposing a new game)',
                     format: 'integer greater than zero',
                     defaultValue: '10'
-                },
-                {
+                }]
+            },
+            {
+                subcommand: 'Join', description: 'Join a game', args: [{
                     name: 'join',
-                    isLiteral: true,
-                    description: 'join the currently proposed game in this channel'
-                },
-                {
+                    isLiteral: true
+                }]
+            },
+            {
+                subcommand: 'Cancel', description: 'Cancel a proposed game', args: [{
                     name: 'cancel',
-                    isLiteral: true,
-                    description: 'cancel the current game proposal'
-                },
-                {
+                    isLiteral: true
+                }]
+            },
+            {
+                subcommand: 'Start', description: 'Start the proposed game', args: [{
                     name: 'start',
-                    isLiteral: true,
-                    description: 'starts the current game proposal (only available to the creator of the proposal)'
-                },
-            ]
-        }],
+                    isLiteral: true
+                }]
+            }
+        ],
         /**
          * @param {module:"discord.js".Message} message
          * @param {string[]} args

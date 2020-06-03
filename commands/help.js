@@ -7,7 +7,9 @@ const PAGE_SIZE = 25;
  * @param {CommandArgumentDefinition} arg
  */
 function argumentDefinition(arg) {
-    if ('group' in arg) {
+    if (Array.isArray(arg)) {
+        return arg.map(argumentDefinition).join(' ');
+    } else if ('group' in arg) {
         switch (arg.group) {
             case 'choice':
                 return `${arg.optional ? '[' : '{'}${arg.args.map(argumentDefinition).join('|')}${arg.optional ? ']' : '}'}`;
@@ -15,7 +17,7 @@ function argumentDefinition(arg) {
                 return '*%error: unknown group%*'; // Shouldn't happen
         }
     } else {
-        const nonLiteral = arg.isLiteral ? '' : '**';
+        const nonLiteral = arg.isLiteral ? '**' : '';
         const [optLft, optRight] = arg.optional ? ['[', ']'] : ['', ''];
         const defVal = 'defaultValue' in arg ? `=${arg.defaultValue}` : '';
         return `${nonLiteral}${optLft}${arg.name}${defVal}${optRight}${nonLiteral}`;
@@ -23,22 +25,70 @@ function argumentDefinition(arg) {
 }
 
 /**
+ * @param {CommandArgumentDefinition} arg
+ * @param {number} tabLevel
+ * @return {string}
+ */
+function argumentUsage(arg, tabLevel) {
+    if (Array.isArray(arg)) {
+        return arg.map(val => argumentUsage(val, tabLevel)).join('\n');
+    } else if ('group' in arg) {
+        switch (arg.group) {
+            case 'choice':
+                return argumentUsage(arg.args, tabLevel);
+            default:
+                return '*%error: unknown group%*'; // Shouldn't happen
+        }
+    } else {
+        const tabs = tabLevel > 0 ? `\`${new Array(2 * tabLevel).fill(' ').join('')}\` ` : '';
+        const tabs_more = `\`${new Array(2 * (tabLevel + 1)).fill(' ').join('')}\` `;
+        const lines = [`${tabs}**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`];
+        if (arg.format) lines.push(`${tabs_more}Formato: ${arg.format}`);
+        if (arg.defaultValue) lines.push(`${tabs_more}Por defecto: ${arg.defaultValue}`)
+        return lines.join('\n');
+    }
+}
+
+/**
  * @param {Command} command
- * @return {module:"discord.js".EmbedFieldData}
+ * @return {module:"discord.js".EmbedFieldData[]}
  */
 function usageDescription(command) {
-    return {
-        name: "Uso",
-        value: `*${config.prefix}${command.name} ${command.usage.map(argumentDefinition).join(" ")}*\n`
-            + command.usage
-                // flat groups
-                .reduce((p, arg) => 'group' in arg ? p.concat(arg.args) : p.concat([arg]), [])
-                .map(arg =>
-                    `\`    \`**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`
-                    + (arg.format ? `\n\`        \`Formato: ${arg.format}` : '')
-                    + (arg.defaultValue ? `\n\`        \`Valor por defecto: ${arg.defaultValue}` : '')
-                ).join("\n")
-    };
+    if (command.usage.length === 0) return [];
+    const hasSubcommands = typeof command.usage[0].subcommand === 'string';
+    if (hasSubcommands && command.usage.find(u => typeof u.subcommand !== 'string')) {
+        // noinspection JSValidateTypes
+        return [{name: 'Error in command definition', value: 'Mixed subcommands and definitions'}];
+    }
+    const fields = [];
+    const completeDefinition = definition =>
+        `***${config.prefix}${command.name}**${definition ? ` ${definition}` : ''}*`;
+    /**
+     * @type {{name: string, value: string}[]}
+     */
+    if (hasSubcommands) {
+        /** @param {SubcommandDefinition} subcommand */
+        fields.push(...command.usage.map(subcommand => {
+            const definition = completeDefinition(argumentDefinition(subcommand.args));
+            const lines = [definition, subcommand.description];
+            if (subcommand.args.length !== 1 || !subcommand.args[0].isLiteral) {
+                lines.push('Detalles:');
+                lines.push(argumentUsage(subcommand.args, 0));
+            }
+            return {
+                name: subcommand.subcommand,
+                value: lines.join('\n')
+            };
+        }));
+    } else {
+        const definition = completeDefinition(argumentDefinition(command.usage));
+        fields.push(...[
+            {name: "Uso", value: definition},
+            {name: "Detalles", value: argumentUsage(command.usage, 0)}
+        ]);
+    }
+    // noinspection JSValidateTypes
+    return fields;
 }
 
 module.exports = {
@@ -52,8 +102,10 @@ module.exports = {
                     name: 'pag', description: 'indica la página de ayuda que quieres ver', optional: true,
                     format: 'entero mayor que 1', defaultValue: '1'
                 },
-                {name: 'comando', description: 'indica un comando para el que obtener una descripción detallada',
-                    format: 'nombre del comando'}
+                {
+                    name: 'comando', description: 'indica un comando para el que obtener una descripción detallada',
+                    format: 'nombre del comando'
+                }
             ]
         }],
         /**
@@ -97,8 +149,8 @@ module.exports = {
                         const fields = [
                             {name: 'Descripción', value: command.description || command.shortDescription}
                         ];
-                        if (command.usage) {
-                            fields.push(usageDescription(command));
+                        if (Array.isArray(command.usage)) {
+                            fields.push(...usageDescription(command));
                         }
                         const embed = new MessageEmbed()
                             .setTitle(`Ayuda para ${context.config.prefix}${command.name}`)

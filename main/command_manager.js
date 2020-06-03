@@ -12,7 +12,7 @@ const fs = require('fs');
  * @typedef CommandArgumentDefinitionGroup
  * @property {'choice'} group
  * @property {boolean} [optional] - whether the command is optional, by default we should assume it is not
- * @property {CommandSpecificArgumentDefinition[]} args
+ * @property {CommandArgumentDefinition[]} args - arguments inside
  */
 
 /**
@@ -26,7 +26,13 @@ const fs = require('fs');
  */
 
 /**
- * @typedef {CommandSpecificArgumentDefinition|CommandArgumentDefinitionGroup} CommandArgumentDefinition
+ * @typedef {CommandSpecificArgumentDefinition|CommandArgumentDefinitionGroup} CommandSingleArgumentDefinition
+ */
+/**
+ * @typedef {CommandSingleArgumentDefinition|CommandSingleArgumentDefinition[]} CommandArgumentDefinition
+ */
+/**
+ * @typedef {{subcommand: string, description: string, args: CommandArgumentDefinition}} SubcommandDefinition
  */
 
 /**
@@ -35,7 +41,7 @@ const fs = require('fs');
  * @property {string} name
  * @property {string} [description] - if not deffined, short description should be always used
  * @property {string} shortDescription
- * @property {CommandArgumentDefinition[]} [usage]
+ * @property {SubcommandDefinition[]|CommandArgumentDefinition[]} [usage]
  * @property {boolean} [hidden]
  */
 

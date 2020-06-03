@@ -184,6 +184,39 @@ const SUBCOMMANDS = {
     }
 };
 
+/**
+ * @type {CommandArgumentDefinition}
+ */
+const SUBCOMMAND_ARGS = [
+    [
+        {name: 'c', description: 'usado para crear un evento de forma rápida', isLiteral: true},
+        {
+            name: 'fecha', description: 'al crear un evento de forma rápida, la fecha y hora de comienzo del evento',
+            format: 'formato de fechas más abajo'
+        },
+        {name: 'titulo', description: 'al crear un evento de forma rápida, título del evento'}
+    ],
+    [
+        {name: 'crear', description: 'usado para crear un evento de forma rápida', isLiteral: true},
+        {
+            name: 'fecha', description: 'al crear un evento de forma rápida, la fecha y hora de comienzo del evento',
+            format: 'formato de fechas más abajo'
+        },
+        {name: 'titulo', description: 'al crear un evento de forma rápida, título del evento'}
+    ],
+    [
+        {name: 'mostrar', description: 'muestra los eventos programados para este canal', isLiteral: true},
+        {
+            name: 'pagina', description: 'al mostrar los eventos, página a mostrar', optional: true,
+            format: 'entero mayor o igual que 1', defaultValue: 1
+        },
+    ],
+    [
+        {name: 'borrar', description: 'borra eventos programados para este canal', isLiteral: true},
+        {name: 'id', description: 'id del evento a borrar, puede leerse en mostrar eventos'},
+    ]
+];
+
 // Map by event id
 const scheduledEvents = new Map();
 
@@ -412,7 +445,7 @@ module.exports = {
         name: 'eventos',
         shortDescription: 'Notificación de eventos',
         description: 'Crea, modifica y elimina notificaciones de eventos (fecha y hora de españa).',
-        usage: [],
+        usage: [{group: 'choice', args: SUBCOMMAND_ARGS}],
         hidden: true,
         execute(message, args, context) {
             if (args.length === 0) {
