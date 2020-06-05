@@ -1,5 +1,6 @@
 const { MessageEmbed } = require('discord.js');
 const config = require('../bot-config.json');
+const {apelativoRandom} = require("../main/apelativos");
 
 const CMD_ACCEPT = "acp";
 const CMD_REFFUSE = "rec";
@@ -101,7 +102,7 @@ function onMessage(msg) {
 				}
 			} catch (err) {
 				if (err === ERR_OCCUPIED) {
-				    msg.reply("la casilla está ocupada.");
+				    msg.reply(`la casilla está ocupada, ${apelativoRandom()}.`);
 				}
 			}
 		}
@@ -129,7 +130,7 @@ function invite(message, args) {
 function accept(message, args) {
 	const game = games.get(message.author.id);
 	if (!game) {
-		message.reply("no estás invitado a ninguna partida, merluz@.");
+		message.reply(`no estás invitado a ninguna partida, ${apelativoRandom()}.`);
 		return;
 	}
 	if (game.players[1] !== message.author.id) {
@@ -146,7 +147,7 @@ function accept(message, args) {
 function cancel(message) {
 	const game = games.get(message.author.id);
 	if (!game) {
-		message.reply("no tienes invitaciones salientes ni entrantes que cancelar, sabandija.");
+		message.reply(`no tienes invitaciones salientes ni entrantes que cancelar, ${apelativoRandom()}.`);
 		return;
 	}
 	games.delete(game.players[0]);
@@ -158,7 +159,7 @@ function pendent(message) {
 	const id = message.author.id;
 	const game = games.get(id);
 	if (!game) {
-		message.reply("no tienes invitaciones salientes ni entrantes, pedante.");
+		message.reply(`no tienes invitaciones salientes ni entrantes, ${apelativoRandom()}.`);
 		return;
 	}
 	message.reply(`tienes una partida ${game.players[0] === id ? 'saliente' : 'entrante'} ${game.accepted ? 'en curso' : 'pendiente de aceptación'}.`);

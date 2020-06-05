@@ -2,6 +2,7 @@ const Sequelize = require("sequelize");
 const path = require('path');
 
 const moment = require('moment');
+const {apelativoRandom} = require("../main/apelativos");
 const {Logger} = require("../logging/logger");
 const {OK, WRONG, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
@@ -43,7 +44,7 @@ const SUBCOMMANDS = {
         }
         const notifyAt = defaultNotifyAtFor(start, withHour);
         if (notifyAt.isBefore(moment().add(30, 'seconds'))) {
-            message.reply('se tendría que notificar en menos de 30 segundos!');
+            message.reply(`se tendría que notificar en menos de 30 segundos, ${apelativoRandom()}!`);
             return;
         }
         const title = args.slice(i).join(' ');
@@ -75,13 +76,13 @@ const SUBCOMMANDS = {
         }
         if (currentKey) groupedArgs[currentKey] = groupedArgs[currentKey].join(' ');
         if (!('titulo' in groupedArgs && 'cuando' in groupedArgs)) {
-            message.reply('los campos `cuando` y `titulo` son obligatorios.')
+            message.reply(`los campos \`cuando\` y \`titulo\` son obligatorios, ${apelativoRandom()}.`)
             return;
         }
         event.title = groupedArgs['titulo'];
         const [cuando, withHour] = parseInputDate(groupedArgs['cuando']);
         if (!cuando.isValid()) {
-            message.reply('`cuando` tiene un formato inválido');
+            message.reply(`\`cuando\` tiene un formato inválido, ${apelativoRandom()}`);
             return;
         }
         event.start = cuando.format(TIMESTAMP_FORMAT);
@@ -103,14 +104,14 @@ const SUBCOMMANDS = {
             const [notificar, withHour] = parseInputDate(groupedArgs['notificar']);
             if (notificar.isValid() && withHour) event.notifyAt = notificar.format(TIMESTAMP_FORMAT);
             else {
-                message.reply('`notificar` tiene formato inválido');
+                message.reply(`\`notificar\` tiene formato inválido, ${apelativoRandom()}`);
                 return;
             }
         } else {
             event.notifyAt = defaultNotifyAtFor(cuando, withHour).format(TIMESTAMP_FORMAT);
         }
         if (moment(event.notifyAt, TIMESTAMP_FORMAT).subtract(30, 'seconds').isBefore(moment())) {
-            message.reply(`el evento se notificaría en menos de 30 segundos! (${cuando.format(TIMESTAMP_OUTPUT)})`);
+            message.reply(`el evento se notificaría en menos de 30 segundos, ${apelativoRandom()}! (${cuando.format(TIMESTAMP_OUTPUT)})`);
             return;
         }
         if ('color' in groupedArgs && /^[0-9a-z]{6}$/i.test(groupedArgs.color))
@@ -123,12 +124,12 @@ const SUBCOMMANDS = {
         const count = await Event.count({where: {channel_id: message.channel.id}});
         const pagesTotal = Math.ceil(count / PAGE_SIZE);
         if (pagesTotal === 0) {
-            message.reply('no hay ningún evento previsto.');
+            message.reply(`no hay ningún evento previsto, ${apelativoRandom()}.`);
             return;
         }
         const page = args[0] && !isNaN(parseInt(args[0], 10)) ? parseInt(args[0], 10) - 1 : 0;
         if (page >= pagesTotal) {
-            message.reply(`página inválida (sólo hay ${pagesTotal} páginas).`);
+            message.reply(`página inválida (sólo hay ${pagesTotal} páginas, ${apelativoRandom()}).`);
             return;
         }
         const toSchedule = await Event.findAll({
@@ -149,19 +150,19 @@ const SUBCOMMANDS = {
     },
     borrar: async (message, args, context) => {
         if (args[0] === undefined || isNaN(parseInt(args[0], 10))) {
-            message.reply('debes indicar el id del evento a borrar (utiliza `eventos mostrar` para ver los ids).');
+            message.reply(`debes indicar el id del evento a borrar, ${apelativoRandom()} (utiliza \`eventos mostrar\` para ver los ids).`);
             return;
         }
         const id = parseInt(args[0], 10);
         if (id < 0) {
-            message.reply('el id debe ser mayor o igual que 0!');
+            message.reply(`el id debe ser mayor o igual que 0, ${apelativoRandom()}!`);
             return;
         }
         const event = await Event.findOne({
             where: {channel_id: message.channel.id, id}
         });
         if (!event) {
-            message.reply('no se ha encontrado el evento');
+            message.reply(`no se ha encontrado el evento, ${apelativoRandom()}`);
             return;
         }
         await destroyEvent(event, 'user request');
@@ -169,7 +170,7 @@ const SUBCOMMANDS = {
     },
     limpiar: async (message, args, context) => {
         if (message.author.id !== '424966681778061335') {
-            message.reply('no tienes permiso para iniciar tal cruzada, amigo.');
+            message.reply(`no tienes permiso para iniciar tal cruzada, ${apelativoRandom()}.`);
             return;
         }
         const deleted = await Event.destroy({

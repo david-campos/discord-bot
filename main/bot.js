@@ -2,6 +2,7 @@ const {CommandManager} = require("./command_manager");
 const {MessageReceptionLock} = require("./msg_reception_lock");
 const {CommandParser} = require("./command_parser");
 const Discord = require('discord.js');
+const {apelativoRandom} = require("./apelativos");
 const {Sequelize} = require('sequelize');
 
 /**
@@ -83,7 +84,12 @@ class Bot {
         if (msg.author.bot) return;
 
         const withPrefix = msg.content.startsWith(this.config.prefix);
-        if (!(withPrefix/*|| msg.mentions.has(client.user)*/)) return;
+        if (!(withPrefix)) {
+            if (msg.mentions.has(this.client.user)) {
+                this.specialAnswer(msg);
+            }
+            return;
+        }
         const [command, args] = this._commandParser.parse(msg);
 
         try {
@@ -103,10 +109,23 @@ class Bot {
             }
         } catch (error) {
             if (!this.config.silentMode) {
-                msg.reply(`no conozco el comando "${command}".\n`
+                msg.reply(`a ver, ${apelativoRandom()}, no conozco el comando "${command}"...\n`
                     +`Quizás quisiste decir: ${this.didYouMean(command).slice(0, 3).map(w => `\`${w}\``).join(', ')}`)
                     .then(); // Ignore
             }
+        }
+    }
+
+    /**
+     * @param {Message} msg
+     */
+    specialAnswer(msg) {
+        if (msg.content.toLowerCase().includes('gracias')) {
+            msg.reply(`De nada, ${apelativoRandom()} (:`).then();
+        } else if (msg.content.toLowerCase().includes('ol')) {
+            msg.reply(`Buenas, ${apelativoRandom()}!`).then();
+        } else {
+            msg.reply(`No sé qué decirte, ${apelativoRandom()}, ¿por qué no pruebas \`${this.config.prefix}ayuda\`?`).then();
         }
     }
 

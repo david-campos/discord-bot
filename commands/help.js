@@ -1,5 +1,6 @@
 const {MessageEmbed} = require('discord.js');
 const config = require('../bot-config.json');
+const {apelativoRandom} = require("../main/apelativos");
 
 const PAGE_SIZE = 25;
 
@@ -119,7 +120,7 @@ module.exports = {
                 if (args.length === 0 || !isNaN(parseInt(args[0], 10))) {
                     const page = args.length === 0 ? 1 : parseInt(args[0], 10);
                     if (page < 1) {
-                        message.reply('invalid page').then();
+                        message.reply(`página inválida, ${apelativoRandom()}`).then();
                         return;
                     }
                     const pageIdx = page - 1;
@@ -159,7 +160,7 @@ module.exports = {
                             .addFields(fields);
                         message.channel.send(embed).then();
                     } else {
-                        message.reply(`${args[0]}? WTF? No conozco ese comando, pelma.\n`
+                        message.reply(`${args[0]}? WTF? No conozco ese comando, ${apelativoRandom()}.\n`
                             + `Quizás quisiste decir: ${context.didYouMean(args[0]).slice(0, 5).map(w => `\`${w}\``).join(', ')}`);
                     }
                 }
