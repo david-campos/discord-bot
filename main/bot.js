@@ -123,7 +123,9 @@ class Bot {
         if (msg.content.toLowerCase().includes('gracias')) {
             msg.reply(`De nada, ${apelativoRandom()} (:`).then();
         } else if (msg.content.toLowerCase().includes('ol')) {
-            msg.reply(`Buenas, ${apelativoRandom()}!`).then();
+            const saludos = ["Buenas", "Qué tal", "Holi", "Hola", "Hey", "Sup"];
+            const saludo = saludos[Math.round(Math.random() * (saludos.length - 1))];
+            msg.reply(`${saludo}, ${apelativoRandom()}!`).then();
         } else {
             msg.reply(`No sé qué decirte, ${apelativoRandom()}, ¿por qué no pruebas \`${this.config.prefix}ayuda\`?`).then();
         }

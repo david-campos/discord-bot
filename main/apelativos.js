@@ -136,7 +136,9 @@ const APELATIVOS = [
     'lameculos',
     'cenizo',
     'torracollons',
-    'carallot'
+    'carallot',
+    'bro',
+    'carapostal'
 ];
 
 const apelativoRandom = function() {
