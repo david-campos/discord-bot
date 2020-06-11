@@ -463,7 +463,7 @@ module.exports = {
         hidden: true,
         execute(message, args, context) {
             if (args.length === 0) {
-                message.reply(`utiliza \`${context.config.prefix}ayuda evento\``
+                message.reply(`utiliza \`${context.config.prefix}ayuda eventos\``
                     + ` para más información sobre cómo utilizar este comando.`)
                     .then();
                 return;
