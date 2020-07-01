@@ -57,9 +57,9 @@ class GuessingController {
     }
 
     /**
-     * @abstract Implement to give the solution for a given item
+     * @abstract Implement to give the solution(s) for a given item
      * @param {Item} item
-     * @return {string}
+     * @return {string|string[]}
      */
     itemSolution(item) {
         throw new Error('GuessingController::itemSolution: method must be overrided!');
@@ -556,7 +556,7 @@ class GuessExpertRun {
 /**
  * @template Item
  * @property {Item} item
- * @property {string} solution
+ * @property {string|string[]} solution
  * @property {number} attempts
  * @property {number} hints
  * @property {moment} creationTime
@@ -566,7 +566,7 @@ class GuessExpertRun {
 class GuessCase {
     /**
      * @param {Item} item
-     * @param {string} solution
+     * @param {string|string[]} solution
      */
     constructor(item, solution) {
         this.item = item;
@@ -604,7 +604,8 @@ class GuessCase {
      * @returns {string}
      */
     getRandomHint() {
-        const letters = this.solution.split("")
+        let text = Array.isArray(this.solution) ? this.solution.join(' / ') : this.solution;
+        const letters = text.split("")
             .map((l, i) => [l, i])
             .filter(pair => pair[0].match(/[A-Za-z]/) && !this.knownChars.has(pair[1]))
             .map(pair => pair[1]);
@@ -619,7 +620,7 @@ class GuessCase {
         }
         this.lastHintTime = moment();
         this.hints++;
-        return this.solution.split("").map(
+        return text.split("").map(
             (v, i) => this.knownChars.has(i) || v.match(/[^A-Za-z]/) ? v + " " : "\\_ "
         ).join("");
     }
@@ -631,28 +632,34 @@ class GuessCase {
      * @returns {number}
      */
     mistakesInGuess(guess) {
-        guess = normalize(guess);
-        const right = normalize(this.solution);
-        const guessWords = guess.split(" ");
-        const rightWords = right.split(" ");
-        let score = 0;
+        const arr = Array.isArray(this.solution) ? this.solution : [this.solution];
+        let minScore = Infinity;
+        for (const solution of arr) {
+            guess = normalize(guess);
+            const right = normalize(solution);
+            const guessWords = guess.split(" ");
+            const rightWords = right.split(" ");
+            let score = 0;
 
-        for (let j = 0; j < Math.max(guessWords.length, rightWords.length); j++) {
-            if (j >= guessWords.length) {
-                score += rightWords[j].length;
-            } else if (j >= rightWords.length) {
-                score += guessWords[j].length;
-            } else {
-                const gw = guessWords[j];
-                const rw = rightWords[j];
-                for (let i = 0; i < Math.max(gw.length, rw.length); i++) {
-                    if (rw.length <= i || gw.length <= i || rw[i] !== gw[i]) {
-                        score += 1;
+            for (let j = 0; j < Math.max(guessWords.length, rightWords.length); j++) {
+                if (j >= guessWords.length) {
+                    score += rightWords[j].length;
+                } else if (j >= rightWords.length) {
+                    score += guessWords[j].length;
+                } else {
+                    const gw = guessWords[j];
+                    const rw = rightWords[j];
+                    for (let i = 0; i < Math.max(gw.length, rw.length); i++) {
+                        if (rw.length <= i || gw.length <= i || rw[i] !== gw[i]) {
+                            score += 1;
+                        }
                     }
                 }
             }
+            if (score === 0) return 0;
+            if (score < minScore) minScore = score;
         }
-        return score;
+        return minScore;
     }
 }
 

@@ -10,8 +10,8 @@ const {DEFAULT_SPEEDRUN_LENGTH} = require("../guess_quizz/guess_quizz");
  * @extends GuessingController<Country>
  */
 class CapitalController extends GuessingController {
-    constructor() {
-        super(countries.filter(c => c.capital.length > 0)
+    constructor(countriesList) {
+        super(countriesList.filter(c => c.capital.length > 0)
                 .filter(c => !!c.capital.find(str => str.trim().length > 0)),
             3000,
             10, 300, 500);
@@ -44,9 +44,15 @@ class CapitalController extends GuessingController {
         return new MessageEmbed()
             .setTitle(`${RIGHT} Correct`)
             .setColor(0x00ff00)
-            .setDescription(`${guessingCase.solution} is the capital of ${ctrName}
-Attempts: ${guessingCase.attempts}
-Hints: ${guessingCase.hints}`
+            .setDescription(
+                (guessingCase.solution.length > 1 ?
+                    `${
+                        guessingCase.solution.slice(0, guessingCase.solution.length - 1).join(', ')
+                    } and ${
+                        guessingCase.solution[guessingCase.solution.length - 1]
+                    } are the capitals of ${ctrName}`
+                    : `${guessingCase.solution[0]} is the capital of ${ctrName}.`)
+                + `\nAttempts: ${guessingCase.attempts}\nHints: ${guessingCase.hints}`
             );
     }
 
@@ -71,7 +77,7 @@ Hints: ${guessingCase.hints}`
      * @param {Country} item
      */
     itemSolution(item) {
-        return item.capital.find(str => str.trim().length > 0);
+        return item.capital.filter(str => str.trim().length > 0);
     }
 
     async saveScore(user, guessCase) {
@@ -79,8 +85,24 @@ Hints: ${guessingCase.hints}`
     }
 }
 
-const capitalController = new CapitalController();
+const capitalController = new CapitalController(countries);
+const tempRegions = new Set();
+const subregions = new Map();
+countries.forEach(ctr => {
+    tempRegions.add(ctr.region);
+    if (ctr.subregion.length > 0) {
+        if (subregions.has(ctr.region)) {
+            subregions.get(ctr.region).add(ctr.subregion);
+        } else {
+            subregions.set(ctr.region, new Set([ctr.subregion]));
+        }
+    }
+});
+const regions = new Array(...tempRegions);
 
+/**
+ * @type {CommandExports}
+ */
 module.exports = {
     commands: [
         {
@@ -97,10 +119,65 @@ module.exports = {
             shortDescription: 'Speed-run de capitales (en inglés)',
             description: 'Initiates a capital speedrun. During the speedrun anyone can answer, countries will come one after the other, the first person to answer the correct capital get the point.',
             usage: [
-                {name: 'N', description: 'number of countries in the speedrun', optional: true, format: 'positive integer',
-                    defaultValue: DEFAULT_SPEEDRUN_LENGTH}
+                {
+                    name: 'independent',
+                    description: 'only independent countries capitals',
+                    optional: true,
+                    isLiteral: true
+                },
+                {
+                    name: 'region',
+                    description: 'region or sub-region, check regions with -capital-regions',
+                    optional: true,
+                    format: 'check -capital-regions for valid values',
+                    defaultValue: 'null'
+                },
+                {
+                    name: 'N',
+                    description: 'number of countries in the speedrun',
+                    optional: true,
+                    format: 'positive integer',
+                    defaultValue: DEFAULT_SPEEDRUN_LENGTH
+                }
             ],
-            execute: capitalController.cmdSpeedRunStart.bind(capitalController)
+            execute: async (msg, args, bot) => {
+                const independent = args.length > 0 && args[0] === "independent";
+                if (independent) {
+                    args = args.slice(1);
+                }
+                const hasRegion = args.length > 0 && isNaN(parseInt(args[0], 10));
+                if (!independent && !hasRegion) {
+                    await capitalController.cmdSpeedRunStart(msg, args, bot);
+                } else {
+                    const lastIsNumber = args.length > 0 && !isNaN(args[args.length - 1]);
+                    const newArgs = lastIsNumber ? args.slice(args.length - 1) : [];
+                    let ctrs = countries.slice();
+                    if (independent) ctrs = ctrs.filter(ctr => ctr.independent);
+                    if (hasRegion) {
+                        const region = args.slice(0, lastIsNumber ? args.length - 1 : args.length).join(' ');
+                        ctrs = ctrs.filter(ctr => ctr.region === region || ctr.subregion === region);
+                        if (ctrs.length === 0) {
+                            msg.reply('Invalid region');
+                            return;
+                        }
+                    }
+                    const ctrl = new CapitalController(ctrs);
+                    await ctrl.cmdSpeedRunStart(msg, newArgs, bot);
+                }
+            }
+        },
+        {
+            name: 'capital-regions',
+            shortDescription: 'Regiones para capitales (en inglés)',
+            description: 'Lists the possible regions and subregions to filter the capitals when starting a speedrun.',
+            execute: async (msg, args, bot) => {
+                msg.reply(
+                    'Regions (with subregions between parenthesis):\n'
+                    + regions.map(rg => subregions.has(rg) ?
+                    `${rg}: ${[...subregions.get(rg)].join(', ')}` : rg).join('\n')
+                );
+            },
+            hidden: true
         },
         {
             name: 'capital-hint',
