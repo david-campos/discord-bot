@@ -170,14 +170,14 @@ module.exports = {
             name: 'capital-regions',
             shortDescription: 'Regiones para capitales (en inglés)',
             description: 'Lists the possible regions and subregions to filter the capitals when starting a speedrun.',
+            usage: [],
             execute: async (msg, args, bot) => {
                 msg.reply(
                     'Regions (with subregions between parenthesis):\n'
                     + regions.map(rg => subregions.has(rg) ?
                     `${rg}: ${[...subregions.get(rg)].join(', ')}` : rg).join('\n')
                 );
-            },
-            hidden: true
+            }
         },
         {
             name: 'capital-hint',
