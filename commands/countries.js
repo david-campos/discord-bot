@@ -151,18 +151,15 @@ module.exports = {
                 } else {
                     const lastIsNumber = args.length > 0 && !isNaN(args[args.length - 1]);
                     const newArgs = lastIsNumber ? args.slice(args.length - 1) : [];
-                    let ctrs = countries.slice();
-                    if (independent) ctrs = ctrs.filter(ctr => ctr.independent);
+                    const filtroIdp = independent ? ctr => ctr.independent : () => true;
                     if (hasRegion) {
                         const region = args.slice(0, lastIsNumber ? args.length - 1 : args.length).join(' ');
-                        ctrs = ctrs.filter(ctr => ctr.region === region || ctr.subregion === region);
-                        if (ctrs.length === 0) {
-                            msg.reply('Invalid region');
-                            return;
-                        }
+                        const filtroRegion = ctr => ctr.region === region || ctr.subregion === region;
+                        await capitalController.cmdSpeedRunStart(msg, newArgs, bot,
+                            ctr => filtroRegion(ctr) && filtroIdp);
+                    } else {
+                        await capitalController.cmdSpeedRunStart(msg, newArgs, bot, ctr => ctr.independent);
                     }
-                    const ctrl = new CapitalController(ctrs);
-                    await ctrl.cmdSpeedRunStart(msg, newArgs, bot);
                 }
             }
         },

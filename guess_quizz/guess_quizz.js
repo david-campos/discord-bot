@@ -162,8 +162,9 @@ class GuessingController {
      * @param {module:"discord.js".Message} message
      * @param {string[]} args
      * @param {Bot} context
+     * @param {function} [extraFilter]
      */
-    async cmdSpeedRunStart(message, args, context) {
+    async cmdSpeedRunStart(message, args, context, extraFilter = () => true) {
         /** @type {GuessingChannel<Item>} */
         const state = this.stateManager.getOrGenerateState(message, context);
         if (args.length > 0 && parseInt(args[0], 10) < 1) {
@@ -173,7 +174,8 @@ class GuessingController {
             return;
         }
         const items = args.length > 0 ? parseInt(args[0], 10) : DEFAULT_SPEEDRUN_LENGTH;
-        const speedRun = new GuessSpeedRun(state, items, this.speedRunHintCooldown);
+        const speedRun = new GuessSpeedRun(state,
+            state.getNewPool().filter(extraFilter), items, this.speedRunHintCooldown);
         const embed = new MessageEmbed()
             .setTitle(`\u23f2\ufe0f Speed-run started!`)
             .setColor(0x0000ff)
@@ -277,17 +279,33 @@ class GuessingChannel extends BaseChannelState {
     currentExpertKey() {
         return this.guessingController.expertKey(this.currentCase);
     }
+
+    /**
+     * Returns a new pool to use to get cases from
+     * @return {Item[]}
+     */
+    getNewPool() {
+        return this.guessingController.possibilities.slice();
+    }
 }
 
 class GuessSpeedRun {
     /**
      * @param {number} numberOfCases number of cases in the speed run
+     * @param {Item[]} pool the pool to get cases from
      * @param {GuessingChannel} guessingChannel
      * @param {number} hintCooldown in milliseconds
      */
-    constructor(guessingChannel, numberOfCases, hintCooldown) {
+    constructor(guessingChannel, pool, numberOfCases, hintCooldown) {
+        /** @type {Item[]} */
+        this.pool = pool;
         /** @type {number} */
-        this.remainingCases = numberOfCases;
+        this.remainingCases = Math.min(numberOfCases, pool.length);
+
+        if (this.remainingCases <= 0) {
+            throw new Error('Not enough cases.');
+        }
+
         /** @type {module:"discord.js".Message|null} */
         this.hintMessage = null;
         /** @type {string|null} */
@@ -303,7 +321,7 @@ class GuessSpeedRun {
     }
 
     start() {
-        this.guessingChannel.newCase();
+        this.guessingChannel.newCase(this.pool);
         this.guessingChannel.lockChannel(this._messageReception.bind(this));
     }
 
@@ -336,7 +354,7 @@ class GuessSpeedRun {
             const accepted = this._tryGuess(message);
             if (accepted) {
                 if (this.remainingCases > 0) {
-                    this.guessingChannel.newCase();
+                    this.guessingChannel.newCase(this.pool);
                     this.hintMessage = this.hintText = null;
                     this.guessingChannel
                         .sendCurrentCase(`Remaining flags: ${this.remainingCases}`)
