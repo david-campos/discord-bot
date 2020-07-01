@@ -128,7 +128,7 @@ class GuessingController {
         if (args.length === 0) {
             if (currentCase === null) state.newCase();
             this.sendCase(message.channel, state.currentCase).then();
-        } else if(state.currentCase) {
+        } else if (state.currentCase) {
             const guess = args.join(" ");
             const [valid, mistakes] = state.tryGuess(guess);
             if (valid) {
@@ -174,15 +174,19 @@ class GuessingController {
             return;
         }
         const items = args.length > 0 ? parseInt(args[0], 10) : DEFAULT_SPEEDRUN_LENGTH;
-        const speedRun = new GuessSpeedRun(state,
-            state.getNewPool().filter(extraFilter), items, this.speedRunHintCooldown);
-        const embed = new MessageEmbed()
-            .setTitle(`\u23f2\ufe0f Speed-run started!`)
-            .setColor(0x0000ff)
-            .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
-        await state.channel.send(embed);
-        speedRun.start();
-        await state.sendCurrentCase(`Remaining flags: ${speedRun.remainingCases}`);
+        try {
+            const speedRun = new GuessSpeedRun(state,
+                state.getNewPool().filter(extraFilter), items, this.speedRunHintCooldown);
+            const embed = new MessageEmbed()
+                .setTitle(`\u23f2\ufe0f Speed-run started!`)
+                .setColor(0x0000ff)
+                .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
+            await state.channel.send(embed);
+            speedRun.start();
+            await state.sendCurrentCase(`Remaining flags: ${speedRun.remainingCases}`);
+        } catch (error) {
+            message.reply(error.message);
+        }
     }
 
     /**
@@ -564,7 +568,7 @@ class GuessExpertRun {
         const key = this.guessingChannel.currentExpertKey();
         const millis = this.baseTime + this.timePerChar * this.guessingChannel.currentCase.solution.length;
         const msg = key +
-            `\n\n*Available time: **${Math.round(millis/100)/10}s***\n` +
+            `\n\n*Available time: **${Math.round(millis / 100) / 10}s***\n` +
             `*Remaining flags: ${this.pool.length + 1}*\n` +
             `*Failures: **${this.failures}***`;
         this.guessingChannel.channel.send(msg).then();

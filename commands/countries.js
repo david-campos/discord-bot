@@ -149,14 +149,14 @@ module.exports = {
                 if (!independent && !hasRegion) {
                     await capitalController.cmdSpeedRunStart(msg, args, bot);
                 } else {
-                    const lastIsNumber = args.length > 0 && !isNaN(args[args.length - 1]);
+                    const lastIsNumber = args.length > 0 && !isNaN(parseInt(args[args.length - 1], 10));
                     const newArgs = lastIsNumber ? args.slice(args.length - 1) : [];
-                    const filtroIdp = independent ? ctr => ctr.independent : () => true;
+                    const filtroIdp = independent ? (ctr => ctr.independent) : (() => true);
                     if (hasRegion) {
                         const region = args.slice(0, lastIsNumber ? args.length - 1 : args.length).join(' ');
                         const filtroRegion = ctr => ctr.region === region || ctr.subregion === region;
                         await capitalController.cmdSpeedRunStart(msg, newArgs, bot,
-                            ctr => filtroRegion(ctr) && filtroIdp);
+                            ctr => filtroRegion(ctr) && filtroIdp(ctr));
                     } else {
                         await capitalController.cmdSpeedRunStart(msg, newArgs, bot, ctr => ctr.independent);
                     }
