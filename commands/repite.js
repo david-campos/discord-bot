@@ -6,7 +6,7 @@ const commands = new Map();
 
 /** @type {Command[]} */
 const REPEAT_COMMANDS = [{
-    name: 'repeat',
+    name: 'repite',
     shortDescription: 'Repetir comandos',
     description: 'Repite el último comando introducido en el canal',
     /**
