@@ -16,12 +16,10 @@ const REPEAT_COMMANDS = [{
      */
     async execute(message, args, context) {
         if (commands.has(message.channel.id)) {
-            const args = commands.get(message.channel.id);
+            const args = commands.get(message.channel.id).slice();
             const command = args.shift();
-            console.log('repite: EXECUTE', command, ...args);
             context.executeCommand(message, command, args);
         } else {
-            console.log('unknown channel', message.channel.id);
             message.reply(`🤔${emojis2.THINKING_FACE} no recuerdo el último comando introducido en este canal...`)
         }
     }
@@ -41,7 +39,6 @@ module.exports = {
              */
             (msg, command, args, context) => {
                 if (!REPEAT_COMMANDS.map(cmd => cmd.name).includes(command)) {
-                    console.log('repite: SAVING', command);
                     commands.set(msg.channel.id, [command].concat(args));
                 }
             }
