@@ -8,7 +8,7 @@ const commands = new Map();
 const REPEAT_COMMANDS = [{
     name: 'repite',
     shortDescription: 'Repetir comandos',
-    description: 'Repite el último comando introducido en el canal',
+    description: 'Repite el último comando introducido en el **canal** (no el último introducido por el usuario).',
     /**
      * @param {module:"discord.js".Message} message
      * @param {string[]} args
@@ -20,7 +20,7 @@ const REPEAT_COMMANDS = [{
             const command = args.shift();
             context.executeCommand(message, command, args);
         } else {
-            message.reply(`🤔${emojis2.THINKING_FACE} no recuerdo el último comando introducido en este canal...`)
+            message.reply(`${emojis2.THINKING_FACE} no recuerdo el último comando introducido en este canal...`)
         }
     }
 }];
