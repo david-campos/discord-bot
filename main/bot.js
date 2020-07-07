@@ -4,6 +4,8 @@ const {CommandParser} = require("./command_parser");
 const Discord = require('discord.js');
 const {apelativoRandom} = require("./apelativos");
 const {Sequelize} = require('sequelize');
+const EventEmitter = require('events');
+const {ON_COMMAND_PARSED: ON_COMMAND_PARSED} = require("./bot_events");
 
 /**
  * @typedef BotConfiguration
@@ -37,6 +39,7 @@ class Bot {
         this._commandMgr = new CommandManager(this);
         this._commandParser = new CommandParser(this.config);
         this._receptionLock = new MessageReceptionLock();
+        this._events = new EventEmitter();
     }
 
     async init() {
@@ -91,7 +94,11 @@ class Bot {
             return;
         }
         const [command, args] = this._commandParser.parse(msg);
+        this._events.emit(ON_COMMAND_PARSED, msg, command, args, this);
+        this.executeCommand(msg, command, args);
+    }
 
+    executeCommand(msg, command, args) {
         try {
             const commandInstance = this._commandMgr.resolveCommand(command);
             try {
@@ -114,6 +121,10 @@ class Bot {
                     .then(); // Ignore
             }
         }
+    }
+
+    on(event, callback) {
+        this._events.on(event, callback);
     }
 
     /**
