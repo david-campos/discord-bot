@@ -3,6 +3,7 @@ const {MessageReceptionLock} = require("./msg_reception_lock");
 const {CommandParser} = require("./command_parser");
 const Discord = require('discord.js');
 const {apelativoRandom} = require("./apelativos");
+const emoji = require("../emojis2");
 const {Sequelize} = require('sequelize');
 const EventEmitter = require('events');
 const {Logger} = require("../logging/logger");
@@ -137,7 +138,7 @@ class Bot {
      */
     specialAnswer(msg) {
         if (msg.content.toLowerCase().includes('gracias')) {
-            msg.reply(`de nada, ${apelativoRandom()} (:`).then();
+            msg.reply(`de nada, ${apelativoRandom()} ${emoji.SMILING_FACE}`).then();
         } else if (msg.content.toLowerCase().includes('ol')) {
             const saludos = ["buenas", "qué tal", "holi", "hola", "hey", "sup"];
             const saludo = saludos[Math.round(Math.random() * (saludos.length - 1))];
