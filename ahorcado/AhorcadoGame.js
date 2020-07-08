@@ -45,12 +45,20 @@ class AhorcadoChannel extends BaseChannelState {
             this.cancel();
             return;
         }
-        console.log(msg.content, msg.cleanContent);
         if (msg.content.length !== 1) return;
         const char = msg.content.toLowerCase();
         if (char >= 'a' && char <= 'z') {
-            this.letters.push(char);
-            this.sendCurrentState();
+            if (this.letters.includes(char)) {
+                msg.react(emoji.REPEAT_BUTTON);
+            } else {
+                this.letters.push(char);
+                if (normalize(this.currentWord).includes(char)) {
+                    msg.react(emoji.CHECK_BOX_WITH_CHECK);
+                    this.sendCurrentState();
+                } else {
+                    msg.react(emoji.DOUBLE_EXCLAMATION_MARK);
+                }
+            }
         }
     }
 
@@ -68,9 +76,9 @@ class AhorcadoChannel extends BaseChannelState {
     async sendCurrentState() {
         const word = normalize(this.currentWord).split('')
             .map((c, idx) =>
-                `*${this.letters.includes(c) || c === ' '
+                `**${this.letters.includes(c) || c === ' '
                     ? this.currentWord[idx]
-                    : '_'}*`)
+                    : '_'}**`)
             .join(' ');
         // const attachment = new MessageAttachment(__dirname + '/test.jpg');
         await this.channel.send(
@@ -91,7 +99,7 @@ class AhorcadoChannel extends BaseChannelState {
                 while (words[idx].length < 2) {
                     idx = (idx + 1) % words.length;
                 }
-                this.currentWord = words[idx];
+                this.currentWord = words[idx][0].toLocaleUpperCase() + words[idx].substring(1);
                 this.letters = [];
                 resolve();
             });
