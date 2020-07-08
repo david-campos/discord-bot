@@ -7,7 +7,7 @@ const {Logger} = require("../logging/logger");
 const {OK, WRONG, WASTE_BASKET} = require("../guess_quizz/emojis");
 const {MessageEmbed} = require('discord.js');
 
-const logger = new Logger(path.basename(__filename));
+const logger = new Logger(path.basename(__filename, '.js'));
 
 /**
  * Saves the events so they will not be lost if there is a crash or whatever

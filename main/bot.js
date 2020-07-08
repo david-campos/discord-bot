@@ -9,7 +9,7 @@ const {Logger} = require("../logging/logger");
 const {ON_COMMAND_PARSED: ON_COMMAND_PARSED} = require("./bot_events");
 
 const path = require('path');
-const logger = new Logger(path.basename(__filename));
+const logger = new Logger(path.basename(__filename, '.js'));
 
 /**
  * @typedef BotConfiguration
@@ -37,7 +37,7 @@ class Bot {
         this.sequelize = new Sequelize({
             dialect: 'sqlite',
             storage: 'database.sqlite',
-            logging: config.logDb ? console.log.bind(null, '[DB]') : false
+            logging: config.logDb ? logger.log.bind(logger) : false
         });
 
         this._commandMgr = new CommandManager(this);
@@ -54,11 +54,11 @@ class Bot {
                 this.sequelize.close()
                 process.exit(0)
             })
-            console.log('Connection to database has been established successfully.');
+            logger.log('Connection to database has been established successfully.');
 
             // Discord.js event hooks
             this.client.on('ready', () => {
-                console.log(`Logged in as ${this.client.user.tag}!`);
+                logger.log(`Logged in as ${this.client.user.tag}!`);
             });
             this.client.on('message', this.onMessage.bind(this));
             this.client.on('disconnect', (err) => {
@@ -70,11 +70,11 @@ class Bot {
 
             // Syncronize models
             await this.sequelize.sync({alter: true});
-            console.log('Sequelize models sync done, login...');
+            logger.log('Sequelize models sync done, login...');
 
             await this.client.login(this.config.token);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         }
     }
 
@@ -103,14 +103,14 @@ class Bot {
     }
 
     executeCommand(msg, command, args) {
-        logger.log(`Command ${command} ( ${args.map(arg => `"${arg}"`).join(', ')}`);
+        logger.log(`Command ${command}${args.length > 0 ? `(${args.map(arg => `"${arg}"`).join(', ')})` : ''}`);
         try {
             const commandInstance = this._commandMgr.resolveCommand(command);
             try {
                 // May be async
                 commandInstance.execute(msg, args, this);
             } catch (error) {
-                console.error(error);
+                logger.error(error);
                 if (error.message && !config.silentMode) {
                     msg.reply(`lo siento, ha habido un error ejecutando ese comando: ${error.message}`)
                         .then();

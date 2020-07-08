@@ -2,6 +2,10 @@ const Discord = require('discord.js');
 const fs = require('fs');
 const levenshtein = require('js-levenshtein');
 
+const path = require('path');
+const {Logger} = require("../logging/logger");
+const logger = new Logger(path.basename(__filename, '.js'));
+
 /**
  * @callback ExecuteCallback
  * @param {module:"discord.js".Message} msg
@@ -82,27 +86,27 @@ class CommandManager {
     registerAndInitCommands(commandsFolder) {
         const commandFiles = fs.readdirSync(commandsFolder).filter(file => file.endsWith('.js'));
         for (const file of commandFiles) {
-            console.log(`${commandsFolder}/${file}`);
+            logger.log(`${commandsFolder}/${file}`);
             /**
              * @type {CommandExports}
              */
             const definition = require.main.require(`${commandsFolder}/${file}`);
             if (definition.init) {
-                console.log(`\tinit(context)`);
+                logger.log(`\tinit(context)`);
                 definition.init(this._bot);
             }
             if (definition.ready) {
-                console.log('\tready(context)');
+                logger.log('\tready(context)');
                 this._bot.client.on('ready', definition.ready.bind(null, this._bot));
             }
             if (definition.hooks && typeof definition.hooks === "object") {
-                console.log(`\tHooks: ${Object.entries(definition.hooks).map(hook => hook[0]).join(", ")}`);
+                logger.log(`\tHooks: ${Object.entries(definition.hooks).map(hook => hook[0]).join(", ")}`);
                 Object.entries(definition.hooks).forEach(hook => this._bot.client.on(hook[0], hook[1]));
             }
             for (const cmd of definition.commands) {
                 if (cmd) this._commands.set(cmd.name, cmd);
             }
-            console.log(`\tLoaded commands ${definition.commands.map(cmd => `"${cmd.name}"`).join(', ')}`);
+            logger.log(`\tLoaded commands ${definition.commands.map(cmd => `"${cmd.name}"`).join(', ')}`);
         }
     }
 

@@ -19,6 +19,10 @@ function decodeBase64(text) {
     return buff.toString('utf8');
 }
 
+const path = require('path');
+const {Logger} = require("../logging/logger");
+const logger = new Logger(path.basename(__filename, '.js'));
+
 class Question {
     /**
      * @param {{difficulty: string, incorrect_answers: string[], type: string,
@@ -208,7 +212,7 @@ class ChannelState {
         if (this.currentIndex < this.questionBatch.length) {
             const question = this.questionBatch[this.currentIndex];
             this.currentIndex++;
-            console.log(`Retrieved question ${this.currentIndex}`);
+            logger.log(`Retrieved question ${this.currentIndex}`);
             return question;
         } else {
             await this.fetchNewQuestions();
@@ -217,33 +221,33 @@ class ChannelState {
     }
 
     async fetchNewToken() {
-        console.log('Fetching new token...');
+        logger.log('Fetching new token...');
         const response = await axios.get("https://opentdb.com/api_token.php?command=request");
         if (response.data.response_code === 0) {
             this.token = response.data.token;
-            console.log(`Fetched new token: ${this.token}`);
+            logger.log(`Fetched new token: ${this.token}`);
         } else {
-            console.error(response.data);
+            logger.error(response.data);
             throw new Error('Could not fetch a new token');
         }
     }
 
     async resetToken() {
         if (!this.token) return;
-        console.log(`Resetting token...`);
+        logger.log(`Resetting token...`);
         const response = await axios.get(`https://opentdb.com/api_token.php?command=reset&token=${this.token}`);
         if (response.data.response_code !== 0) {
-            console.error(response.data);
+            logger.error(response.data);
             throw new Error('Could not reset token.');
         } else {
-            console.log('Token reset.');
+            logger.log('Token reset.');
         }
     }
 
     async fetchNewQuestions() {
         if (this.fetchingQuestions) {
             // Wait for fetch to end
-            console.log('Fetch going on, wait to end.');
+            logger.log('Fetch going on, wait to end.');
             await new Promise((resolve, reject) =>
                 this.resolveOnFetched.push({resolve: resolve, reject: reject}));
             return;
@@ -253,7 +257,7 @@ class ChannelState {
         const response = await axios.get(
             `https://opentdb.com/api.php?amount=${this.questionsPerBatch}&encode=base64&token=${this.token}`);
         if (response.data.response_code === 0) {
-            console.log(`Fetching questions (${this.questionsPerBatch})`);
+            logger.log(`Fetching questions (${this.questionsPerBatch})`);
             this.questionBatch = response.data.results.map(q => new Question(q));
             this.currentIndex = 0;
             this.fetchingQuestions = false; // unlock
@@ -263,7 +267,7 @@ class ChannelState {
             await this.resetToken();
             await this.fetchNewQuestions();
         } else {
-            console.error(response.data);
+            logger.error(response.data);
             this.fetchingQuestions = false; // unlock
             this.resolveOnFetched.forEach(obj => obj.reject(response.data));
             this.resolveOnFetched = [];
@@ -355,7 +359,7 @@ module.exports = {
                                 message.reply('only the author of the proposal can start the game.');
                         }
                     } catch (err) {
-                        console.log(err);
+                        logger.log(err);
                         message.reply(err.message);
                     }
                 }
