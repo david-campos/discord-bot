@@ -36,9 +36,30 @@ class AhorcadoChannel extends BaseChannelState {
         this.letters = [];
     }
 
+    /**
+     * @param {module:"discord.js".Message} msg
+     */
+    onMessage(msg) {
+        if (msg.content === emoji.STOP_SIGN) {
+            this.cancel();
+            return;
+        }
+        if (msg.content.length !== 1) return;
+        const char = msg.content.toLowerCase();
+        if (char >= 'a' && char <= 'z') {
+            this.letters.push(char);
+        }
+    }
+
     async start() {
         await this.newWord();
         await this.sendCurrentState();
+        this.lockChannel(this.onMessage.bind(this));
+    }
+
+    cancel() {
+        this.currentWord = null;
+        this.unlockChannel();
     }
 
     async sendCurrentState() {
