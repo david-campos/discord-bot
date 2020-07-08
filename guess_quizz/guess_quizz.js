@@ -1,22 +1,11 @@
 const moment = require('moment')
+const {normalize} = require("../generic/text");
 const {MEDALS} = require("./emojis");
 const {WRONG, RIGHT} = require("./emojis");
 const {MessageEmbed} = require('discord.js');
 const {BaseChannelState, ChannelStateManager} = require('../main/channel_state');
 
 const DEFAULT_SPEEDRUN_LENGTH = 17;
-
-/**
- * Normalizes the string so it can be compared
- * @param str
- * @returns {string}
- */
-function normalize(str) {
-    return str.toLowerCase().trim()
-        .normalize("NFD")
-        .replace(/[^A-Za-z0-9\s\-]+/g, "")
-        .replace(/(\s|-)+/g, " ");
-}
 
 /**
  * Base class that controls the set of commands about guessing things from a list
