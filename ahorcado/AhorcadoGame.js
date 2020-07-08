@@ -40,14 +40,17 @@ class AhorcadoChannel extends BaseChannelState {
      * @param {module:"discord.js".Message} msg
      */
     onMessage(msg) {
+        if (msg.author.bot) return;
         if (msg.content === emoji.STOP_SIGN) {
             this.cancel();
             return;
         }
+        console.log(msg.content, msg.cleanContent);
         if (msg.content.length !== 1) return;
         const char = msg.content.toLowerCase();
         if (char >= 'a' && char <= 'z') {
             this.letters.push(char);
+            this.sendCurrentState();
         }
     }
 
