@@ -4,6 +4,7 @@ const {MessageAttachment} = require('discord.js');
 const fs = require('fs');
 const {normalize} = require("../generic/text");
 const emoji = require("../emojis2");
+const {apelativoRandom} = require("../main/apelativos");
 
 class AhorcadoController {
     constructor() {
@@ -34,6 +35,7 @@ class AhorcadoChannel extends BaseChannelState {
         this.controller = controller;
         this.currentWord = null;
         this.letters = [];
+        this.mistakes = 0;
     }
 
     /**
@@ -41,23 +43,32 @@ class AhorcadoChannel extends BaseChannelState {
      */
     onMessage(msg) {
         if (msg.author.bot) return;
-        if (msg.content === emoji.STOP_SIGN) {
+        if (msg.content === emoji.STOP_SIGN || !this.currentWord) {
             this.cancel();
             return;
         }
-        if (msg.content.length !== 1) return;
-        const char = msg.content.toLowerCase();
-        if (char >= 'a' && char <= 'z') {
-            if (this.letters.includes(char)) {
+        const message = msg.content.toLowerCase();
+        if (normalize(message) === normalize(this.currentWord)) {
+            this.win();
+            return;
+        }
+        if (message.length !== 1) return;
+        if (message >= 'a' && message <= 'z') {
+            if (this.letters.includes(message)) {
                 msg.react(emoji.REPEAT_BUTTON);
             } else {
-                this.letters.push(char);
-                if (normalize(this.currentWord).includes(char)) {
+                this.letters.push(message);
+                if (normalize(this.currentWord).includes(message)) {
                     msg.react(emoji.CHECK_BOX_WITH_CHECK);
-                    this.sendCurrentState();
                 } else {
+                    this.mistakes += 1;
                     msg.react(emoji.DOUBLE_EXCLAMATION_MARK);
+                    if (this.mistakes >= 6) {
+                        this.lose();
+                        return;
+                    }
                 }
+                this.sendCurrentState();
             }
         }
     }
@@ -68,9 +79,24 @@ class AhorcadoChannel extends BaseChannelState {
         this.lockChannel(this.onMessage.bind(this));
     }
 
-    cancel() {
+    win() {
+        this.channel.send(`${emoji.TROPHY} **Correcto!** La palabra era *${this.currentWord}*.`);
+        this.finish();
+    }
+
+    lose() {
+        this.channel.send(`${emoji.SKULL} **Fin del juego** La palabra era *${this.currentWord}*.`)
+        this.finish();
+    }
+
+    finish() {
         this.currentWord = null;
         this.unlockChannel();
+    }
+
+    cancel() {
+        this.channel.send(`${emoji.STOP_SIGN} Juego cancelado, ${apelativoRandom()}.`);
+        this.finish();
     }
 
     async sendCurrentState() {
@@ -80,10 +106,11 @@ class AhorcadoChannel extends BaseChannelState {
                     ? this.currentWord[idx]
                     : '_'}**`)
             .join(' ');
-        // const attachment = new MessageAttachment(__dirname + '/test.jpg');
+        const picLevel = Math.max(Math.min(6, this.mistakes), 0).toString(10);
+        const attachment = new MessageAttachment(`${__dirname}/ahorcado${picLevel}.png`);
         await this.channel.send(
-            `${emoji.GAME_DIE} ${word}\nLetras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`
-            /*, attachment*/);
+            `${emoji.CROSSED_SWORDS} ${word}\nLetras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`
+            , attachment);
     }
 
     async newWord() {
@@ -101,6 +128,7 @@ class AhorcadoChannel extends BaseChannelState {
                 }
                 this.currentWord = words[idx][0].toLocaleUpperCase() + words[idx].substring(1);
                 this.letters = [];
+                this.mistakes = 0;
                 resolve();
             });
         });
