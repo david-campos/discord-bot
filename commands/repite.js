@@ -1,5 +1,5 @@
-const {ON_COMMAND_PARSED} = require("../main/bot_events");
 const emojis2 = require('../emojis2.js')
+const {BOT_EVENTS} = require("../main/bot_events");
 
 /** @type {Map.<string, string[]>} */
 const commands = new Map();
@@ -30,7 +30,7 @@ const REPEAT_COMMANDS = [{
  */
 module.exports = {
     ready: function (bot) {
-        bot.on(ON_COMMAND_PARSED,
+        bot.on(BOT_EVENTS.ON_COMMAND_RESOLVED,
             /**
              * @param {module:"discord.js".Message} msg
              * @param {string} command

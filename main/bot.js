@@ -7,7 +7,7 @@ const emoji = require("../emojis2");
 const {Sequelize} = require('sequelize');
 const EventEmitter = require('events');
 const {Logger} = require("../logging/logger");
-const {ON_COMMAND_PARSED: ON_COMMAND_PARSED} = require("./bot_events");
+const {BOT_EVENTS} = require("./bot_events");
 
 const path = require('path');
 const logger = new Logger(path.basename(__filename, '.js'));
@@ -99,14 +99,15 @@ class Bot {
             return;
         }
         const [command, args] = this._commandParser.parse(msg);
-        this._events.emit(ON_COMMAND_PARSED, msg, command, args, this);
+        this._events.emit(BOT_EVENTS.ON_COMMAND_PARSED, msg, command, args, this);
         this.executeCommand(msg, command, args);
     }
 
     executeCommand(msg, command, args) {
-        logger.log(`Command ${command}${args.length > 0 ? `(${args.map(arg => `"${arg}"`).join(', ')})` : ''}`);
         try {
             const commandInstance = this._commandMgr.resolveCommand(command);
+            logger.log(`Command ${command}${args.length > 0 ? `(${args.map(arg => `"${arg}"`).join(', ')})` : ''}`);
+            this._events.emit(BOT_EVENTS.ON_COMMAND_RESOLVED, msg, command, args, this);
             try {
                 // May be async
                 commandInstance.execute(msg, args, this);
@@ -121,6 +122,7 @@ class Bot {
                 }
             }
         } catch (error) {
+            logger.log(`Unknown command ${command}`);
             if (!this.config.silentMode) {
                 msg.reply(`a ver, ${apelativoRandom()}, no conozco el comando "${command}"...\n`
                     +`Quizás quisiste decir: ${this.didYouMean(command).slice(0, 3).map(w => `\`${w}\``).join(', ')}`)

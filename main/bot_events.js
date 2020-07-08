@@ -1,3 +1,6 @@
 module.exports = {
-    ON_COMMAND_PARSED: 'command-parsed'
+    BOT_EVENTS: {
+        ON_COMMAND_PARSED: 'command-parsed',
+        ON_COMMAND_RESOLVED: 'command-resolved'
+    }
 }
