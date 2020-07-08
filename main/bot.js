@@ -5,7 +5,11 @@ const Discord = require('discord.js');
 const {apelativoRandom} = require("./apelativos");
 const {Sequelize} = require('sequelize');
 const EventEmitter = require('events');
+const {Logger} = require("../logging/logger");
 const {ON_COMMAND_PARSED: ON_COMMAND_PARSED} = require("./bot_events");
+
+const path = require('path');
+const logger = new Logger(path.basename(__filename));
 
 /**
  * @typedef BotConfiguration
@@ -99,6 +103,7 @@ class Bot {
     }
 
     executeCommand(msg, command, args) {
+        logger.log(`Command ${command} ( ${args.map(arg => `"${arg}"`).join(', ')}`);
         try {
             const commandInstance = this._commandMgr.resolveCommand(command);
             try {

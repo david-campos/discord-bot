@@ -18,7 +18,7 @@ class AhorcadoController {
      * @param {string[]} args
      * @param {Bot} context
      */
-    async cmdNewWord(message, args, context) {
+    async cmdNewGame(message, args, context) {
         const state = this.stateManager.getOrGenerateState(message, context);
         await state.start();
     }
@@ -74,6 +74,9 @@ class AhorcadoChannel extends BaseChannelState {
     }
 
     async start() {
+        if (this.currentWord) {
+            return;
+        }
         await this.newWord();
         await this.sendCurrentState();
         this.lockChannel(this.onMessage.bind(this));
@@ -85,7 +88,9 @@ class AhorcadoChannel extends BaseChannelState {
     }
 
     lose() {
-        this.channel.send(`${emoji.SKULL} **Fin del juego** La palabra era *${this.currentWord}*.`)
+        this.channel.send(
+            `${emoji.SKULL} **Fin del juego** La palabra era *${this.currentWord}*.`,
+            this.attachmentForMistakes())
         this.finish();
     }
 
@@ -99,6 +104,11 @@ class AhorcadoChannel extends BaseChannelState {
         this.finish();
     }
 
+    attachmentForMistakes() {
+        const picLevel = Math.max(Math.min(6, this.mistakes), 0).toString(10);
+        return new MessageAttachment(`${__dirname}/ahorcado${picLevel}.png`);
+    }
+
     async sendCurrentState() {
         const word = normalize(this.currentWord).split('')
             .map((c, idx) =>
@@ -106,11 +116,9 @@ class AhorcadoChannel extends BaseChannelState {
                     ? this.currentWord[idx]
                     : '_'}**`)
             .join(' ');
-        const picLevel = Math.max(Math.min(6, this.mistakes), 0).toString(10);
-        const attachment = new MessageAttachment(`${__dirname}/ahorcado${picLevel}.png`);
         await this.channel.send(
             `${emoji.CROSSED_SWORDS} ${word}\nLetras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`
-            , attachment);
+            , this.attachmentForMistakes());
     }
 
     async newWord() {
