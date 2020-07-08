@@ -1,6 +1,6 @@
 const {BaseChannelState} = require("../main/channel_state");
 const {ChannelStateManager} = require("../main/channel_state");
-const {MessageEmbed, MessageAttachment} = require('discord.js');
+const {MessageAttachment} = require('discord.js');
 const fs = require('fs');
 const {normalize} = require("../generic/text");
 const emoji = require("../emojis2");
@@ -44,16 +44,14 @@ class AhorcadoChannel extends BaseChannelState {
     async sendCurrentState() {
         const word = normalize(this.currentWord).split('')
             .map((c, idx) =>
-                this.letters.includes(c) || c === ' '
+                `*${this.letters.includes(c) || c === ' '
                     ? this.currentWord[idx]
-                    : '_')
+                    : '_'}*`)
             .join(' ');
-        const embed = new MessageEmbed()
-            .setTitle(`${emoji.GAME_DIE} ${word}`)
-            .setColor(0x1294f7)
-            .setDescription(`Letras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`);
-        const attachment = new MessageAttachment(__dirname + '/test.jpg');
-        await this.channel.send(embed, attachment);
+        // const attachment = new MessageAttachment(__dirname + '/test.jpg');
+        await this.channel.send(
+            `${emoji.GAME_DIE} ${word}\nLetras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`
+            /*, attachment*/);
     }
 
     async newWord() {
