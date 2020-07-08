@@ -92,21 +92,21 @@ class CommandManager {
              */
             const definition = require.main.require(`${commandsFolder}/${file}`);
             if (definition.init) {
-                logger.log(`\tinit(context)`);
+                logger.log(`    init(context)`);
                 definition.init(this._bot);
             }
             if (definition.ready) {
-                logger.log('\tready(context)');
+                logger.log('    ready(context)');
                 this._bot.client.on('ready', definition.ready.bind(null, this._bot));
             }
             if (definition.hooks && typeof definition.hooks === "object") {
-                logger.log(`\tHooks: ${Object.entries(definition.hooks).map(hook => hook[0]).join(", ")}`);
+                logger.log(`    Hooks: ${Object.entries(definition.hooks).map(hook => hook[0]).join(", ")}`);
                 Object.entries(definition.hooks).forEach(hook => this._bot.client.on(hook[0], hook[1]));
             }
             for (const cmd of definition.commands) {
                 if (cmd) this._commands.set(cmd.name, cmd);
             }
-            logger.log(`\tLoaded commands ${definition.commands.map(cmd => `"${cmd.name}"`).join(', ')}`);
+            logger.log(`    Loaded commands ${definition.commands.map(cmd => `"${cmd.name}"`).join(', ')}`);
         }
     }
 
