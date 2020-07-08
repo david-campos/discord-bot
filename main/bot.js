@@ -137,13 +137,13 @@ class Bot {
      */
     specialAnswer(msg) {
         if (msg.content.toLowerCase().includes('gracias')) {
-            msg.reply(`De nada, ${apelativoRandom()} (:`).then();
+            msg.reply(`de nada, ${apelativoRandom()} (:`).then();
         } else if (msg.content.toLowerCase().includes('ol')) {
-            const saludos = ["Buenas", "Qué tal", "Holi", "Hola", "Hey", "Sup"];
+            const saludos = ["buenas", "qué tal", "holi", "hola", "hey", "sup"];
             const saludo = saludos[Math.round(Math.random() * (saludos.length - 1))];
             msg.reply(`${saludo}, ${apelativoRandom()}!`).then();
         } else {
-            msg.reply(`No sé qué decirte, ${apelativoRandom()}, ¿por qué no pruebas \`${this.config.prefix}ayuda\`?`).then();
+            msg.reply(`no sé qué decirte, ${apelativoRandom()}, ¿por qué no pruebas \`${this.config.prefix}ayuda\`?`).then();
         }
     }
 
