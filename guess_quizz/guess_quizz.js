@@ -172,7 +172,7 @@ class GuessingController {
                 .setDescription("Use `??` for hints or \u274c to cancel the speedrun.");
             await state.channel.send(embed);
             speedRun.start();
-            await state.sendCurrentCase(`Remaining flags: ${speedRun.remainingCases}`);
+            await state.sendCurrentCase(`Remaining: ${speedRun.remainingCases}`);
         } catch (error) {
             message.reply(error.message);
         }
@@ -229,9 +229,9 @@ class GuessingChannel extends BaseChannelState {
 
     /**
      * Replaces the current case for a random new one
-     * @param {Item[]} [pool] - flag of pools to take one from, if undefined it will pick one
-     * at random from flags.list. Notice if you pass a pool in, the selected flag will be popped
-     * from the pool.
+     * @param {Item[]} [pool] - pool of cases to take one from, if undefined it will pick one
+     * at random from guessingController.possibilities. Notice if you pass a pool in,
+     * the selected case will be popped from the pool.
      * @return {GuessCase<Item>} the new current case
      */
     newCase(pool) {
@@ -350,7 +350,7 @@ class GuessSpeedRun {
                     this.guessingChannel.newCase(this.pool);
                     this.hintMessage = this.hintText = null;
                     this.guessingChannel
-                        .sendCurrentCase(`Remaining flags: ${this.remainingCases}`)
+                        .sendCurrentCase(`Remaining: ${this.remainingCases}`)
                         .then();
                 } else {
                     this.shutdown();
@@ -391,7 +391,7 @@ class GuessSpeedRun {
             fields.push([{
                 name: user.username,
                 value: `Guesses: ${answers.length}\n`
-                    + `Average guess time: ${(avgTime / 1000).toFixed(2)}`,
+                    + `Average guess time: ${(avgTime / 1000).toFixed(2)} s`,
                 inline: true
             }, avgTime, answers.length]);
         }
@@ -558,7 +558,7 @@ class GuessExpertRun {
         const millis = this.baseTime + this.timePerChar * this.guessingChannel.currentCase.solution.length;
         const msg = key +
             `\n\n*Available time: **${Math.round(millis / 100) / 10}s***\n` +
-            `*Remaining flags: ${this.pool.length + 1}*\n` +
+            `*Remaining: ${this.pool.length + 1}*\n` +
             `*Failures: **${this.failures}***`;
         this.guessingChannel.channel.send(msg).then();
     }
