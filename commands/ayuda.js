@@ -117,7 +117,7 @@ module.exports = {
          */
         async execute(message, args, context) {
             try {
-                if (args.length === 0 || !isNaN(parseInt(args[0], 10))) {
+                if (args.length === 0 || /[0-9]+/.test(args[0])) {
                     const page = args.length === 0 ? 1 : parseInt(args[0], 10);
                     if (page < 1) {
                         message.reply(`página inválida, ${apelativoRandom()}`).then();
