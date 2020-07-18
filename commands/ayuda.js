@@ -41,8 +41,8 @@ function argumentUsage(arg, tabLevel) {
                 return '*%error: unknown group%*'; // Shouldn't happen
         }
     } else {
-        const tabs = tabLevel > 0 ? `\`${new Array(2 * tabLevel).fill(' ').join('')}\` ` : '';
-        const tabs_more = `\`${new Array(2 * (tabLevel + 1)).fill(' ').join('')}\` `;
+        const tabs = tabLevel > 0 ? `${new Array(2 * tabLevel).fill(' ').join('')} ` : '';
+        const tabs_more = `${new Array(2 * (tabLevel + 1)).fill(' ').join('')} `;
         const lines = [`${tabs}**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`];
         if (arg.format) lines.push(`${tabs_more}Formato: ${arg.format}`);
         if (arg.defaultValue) lines.push(`${tabs_more}Por defecto: ${arg.defaultValue}`)
