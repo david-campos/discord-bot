@@ -58,6 +58,10 @@ class AhorcadoChannel extends BaseChannelState {
                 msg.react(emoji.REPEAT_BUTTON);
             } else {
                 this.letters.push(message);
+                if (this.isComplete()) {
+                    this.win();
+                    return;
+                }
                 if (normalize(this.currentWord).includes(message)) {
                     msg.react(emoji.CHECK_BOX_WITH_CHECK);
                 } else {
@@ -107,6 +111,12 @@ class AhorcadoChannel extends BaseChannelState {
     attachmentForMistakes() {
         const picLevel = Math.max(Math.min(6, this.mistakes), 0).toString(10);
         return new MessageAttachment(`${__dirname}/ahorcado${picLevel}.png`);
+    }
+
+    isComplete() {
+        return !normalize(this.currentWord)
+            .split('')
+            .find(c => !this.letters.includes(c) && c !== ' ');
     }
 
     async sendCurrentState() {
