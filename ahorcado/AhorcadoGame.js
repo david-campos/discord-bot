@@ -82,7 +82,7 @@ class AhorcadoChannel extends BaseChannelState {
             return;
         }
         await this.newWord();
-        await this.sendCurrentState();
+        await this.sendCurrentState(true);
         this.lockChannel(this.onMessage.bind(this));
     }
 
@@ -119,7 +119,7 @@ class AhorcadoChannel extends BaseChannelState {
             .find(c => !this.letters.includes(c) && c !== ' ');
     }
 
-    async sendCurrentState() {
+    async sendCurrentState(withCancel = false) {
         const word = normalize(this.currentWord).split('')
             .map((c, idx) =>
                 `**${this.letters.includes(c) || c === ' '
@@ -127,7 +127,9 @@ class AhorcadoChannel extends BaseChannelState {
                     : '_'}**`)
             .join(' ');
         await this.channel.send(
-            `${emoji.CROSSED_SWORDS} ${word}\nLetras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`
+            `${
+                withCancel ? `Usa ${emoji.STOP_SIGN} para cancelar.\n` : ''
+            }${emoji.CROSSED_SWORDS} ${word}\nLetras usadas: ${this.letters.map(l => l.toUpperCase()).join(', ')}`
             , this.attachmentForMistakes());
     }
 
