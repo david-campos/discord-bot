@@ -36,6 +36,7 @@ class AhorcadoChannel extends BaseChannelState {
         this.currentWord = null;
         this.letters = [];
         this.mistakes = 0;
+        this.debounceTimeout = 0;
     }
 
     /**
@@ -72,7 +73,8 @@ class AhorcadoChannel extends BaseChannelState {
                         return;
                     }
                 }
-                this.sendCurrentState();
+                clearTimeout(this.debounceTimeout);
+                this.debounceTimeout = setTimeout(this.sendCurrentState.bind(this), 1000);
             }
         }
     }
