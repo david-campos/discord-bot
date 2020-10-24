@@ -154,10 +154,12 @@ class GameInstance extends BaseChannelState {
         this.author = null;
         /** @type {module:"discord.js".User[]} */
         this.players = [];
-        /** @type {Map<string, Role>} */
-        this.roles = new Map();
-        /** @type {Map<string, module:"discord.js".DMChannel> */
+        /** @type {Map<string, Character>} */
+        this.characters = new Map();
+        /** @type {Map<string, module:"discord.js".DMChannel>} */
         this.dmChannels = new Map();
+        /** @type {Map<string, [string, function<DiscordMessage>][]>}*/
+        this.waitingActions = new Map();
     }
 
     setAuthor(author) {
@@ -197,22 +199,42 @@ class GameInstance extends BaseChannelState {
      */
     onPrivateMessage(msg) {
         if (msg.author.bot) return;
+        // Actions can set a callback waiting for a player to answer something
+        const waitingActions = this.waitingActions.get(msg.author.id);
+        if (waitingActions.length > 0) {
+            const waiting = waitingActions[0];
+            const [_, func] = waiting;
+            if (func(msg)) {
+                waitingActions.shift();
+                if (waitingActions.length > 0)
+                    msg.author.send(waitingActions[0][0]).then();
+            }
+            return;
+        }
+        // Checking action
         const words = msg.content.split(' ');
         if (words.length > 0) {
             const firstWord = words[0];
-            const availableActions = this.roles.get(msg.author.id).actions;
+            const availableActions = this.characters.get(msg.author.id).actions;
             const action = availableActions.find(action => action.id === firstWord);
             if (action) {
                 action.execute(this, msg);
+                return;
             }
-        } else {
-            msg.reply(apelativoRandom()).then();
         }
+        msg.reply(`That is not one of your actions, ${apelativoRandom()}`).then();
+    }
+
+    askToPlayer(player, msg, callback) {
+        const waitingActions = this.waitingActions.get(player.id);
+        if (waitingActions.length === 0)
+            player.send(msg);
+        waitingActions.push([msg, callback]);
     }
 
     async start() {
         if (this.players.length < REQUIRED_PLAYERS) throw 'not-enough-players';
-        this._assignRoles();
+        this._assignCharacters();
         await this._createDmChannels();
         this._sendRoles().then();
         this.started = true;
@@ -231,11 +253,12 @@ class GameInstance extends BaseChannelState {
         this.controller.removeGame(this.key);
     }
 
-    _assignRoles() {
+    _assignCharacters() {
         if (this.started) return;
-        const roles = this._createRoles();
+        const roles = this._createCharacters();
         for (let player of this.players) {
-            this.roles.set(player.id, popRandomElement(roles));
+            this.characters.set(player.id, popRandomElement(roles));
+            this.waitingActions.set(player.id, []);
         }
     }
 
@@ -248,23 +271,23 @@ class GameInstance extends BaseChannelState {
     }
 
     async _sendRoles() {
-        if (this.roles.size === 0) return;
+        if (this.characters.size === 0) return;
         for (let player of this.players) {
             await this.dmChannels.get(player.id)
-                .send(`Your role: ${this.roles.get(player.id).roleName}`);
+                .send(`Your role: ${this.characters.get(player.id).roleName}`);
         }
     }
 
     /**
      * @private
-     * @return {Role[]} the roles
+     * @return {Character[]} the roles
      */
-    _createRoles() {
+    _createCharacters() {
         return [
             new Police(),
-            new Assasin(),
-            new Merchant(),
-            new Rogue()
+            new Assasin()//,
+            // new Merchant(),
+            // new Rogue()
         ];
     }
 }
@@ -285,61 +308,224 @@ class Action {
 
 class SellAction extends Action {
     constructor() {
-        super('sell');
+        super('offer');
     }
 
     async execute(gameInstance, message) {
-        const target = message.mentions.users.first();
+        const parts = message.content.split(' ');
+        if (parts.length > 1) {
+            this.askWhatToSell(gameInstance, message.author, parts.slice(1)).then();
+        } else {
+            /** @type {module:"discord.js".GuildChannel} */
+            const guildChannel = gameInstance.channel;
+            gameInstance.askToPlayer(
+                message.author,
+                'Who do you want to exchange with?\n' +
+                gameInstance.players
+                    .filter(p => p !== message.author)
+                    .map((p, i) =>
+                        `${i + 1}) ${p.username}: ${guildChannel.members.get(p.id).displayName}`)
+                    .join('\n'),
+                msg => {
+                    this.askWhatToSell(gameInstance, message.author, msg.content.split(' '));
+                    return true;
+                }
+            );
+        }
+    }
+
+    async askWhatToSell(gameInstance, seller, args) {
+        /** @type {module:"discord.js".User} */
+        const target = oneBasedIndexOrFind(
+            gameInstance.players.filter(p => p !== seller),
+            args[0],
+            p => p.username === args[0],
+            () => seller.send('Invalid number! Check the list.')
+        );
         if (!target) {
-            await message.reply('You need to mention the user you want to sell to.');
+            if (target === undefined)
+                seller.send('The target user is not playing, check you wrote the right user name!').then();
             return;
         }
-        if (!gameInstance.players.includes(target)) {
-            await message.reply('The target user is not playing!');
+        if (args.length > 1) {
+            await this.sell(gameInstance, seller, target, args.slice(1));
+        } else {
+            gameInstance.askToPlayer(
+                seller,
+                'What do you want to exchange?\n' +
+                gameInstance.characters.get(seller.id)
+                    .inventory
+                    .map((item, idx) => `${idx + 1}) ${item.display}`)
+                    .join('\n'),
+                msg => {
+                    this.sell(gameInstance, seller, target, msg.content.split(' '));
+                    return true;
+                }
+            );
+        }
+    }
+
+    async sell(gameInstance, seller, target, args) {
+        const item = oneBasedIndexOrFind(
+            gameInstance.characters.get(seller.id).inventory,
+            args[0],
+            item => item.display === args[0],
+            () => seller.send('Invalid number! Check the list.')
+        );
+        if (!item) {
+            if (item === undefined)
+                seller.send(`The item ${args[0]} could not be found.`);
             return;
         }
+        seller.send('Asking...');
         /** @type {module:"discord.js".GuildChannel} */
         const guildChannel = gameInstance.channel;
-        const authorName = guildChannel.members.get(message.author.id).displayName;
-        await target.send(`${authorName} wants to sell you something. Do you wish to accept?`);
-        logger.log('SellAction performed: mensaje enviado TT, nano, fiera.');
+        const authorName = guildChannel.members.get(seller.id).displayName;
+        gameInstance.askToPlayer(
+            target,
+            `${authorName} wants to exchange ${item.display} with you. Select an item (or \`free\`) to offer an exchange, or send \`no\` to refuse:\n` +
+            gameInstance.characters.get(target.id)
+                .inventory
+                .map((item, idx) => `${idx + 1}) ${item.display}`)
+                .join('\n'),
+            msg => {
+                const content = msg.content;
+                const lower = content.toLocaleLowerCase();
+                if (lower === 'no') {
+                    /** @type {module:"discord.js".GuildChannel} */
+                    const guildChannel = gameInstance.channel;
+                    const nameTarget = guildChannel.members.get(target.id).displayName;
+                    seller.send(`${emoji.CROSS_MARK} ${nameTarget} **refused** the exchange.`);
+                    target.send(`${emoji.CROSS_MARK} you refused the exchange.`);
+                } else if (lower === 'free') {
+                    this.offerPayment(gameInstance, seller, target, item, null);
+                    msg.react(emoji.CHECK_BOX_WITH_CHECK);
+                } else {
+                    const payment = oneBasedIndexOrFind(
+                        gameInstance.characters.get(target.id).inventory,
+                        content,
+                        it => it.display === content,
+                        () => target.send('Invalid number! Check the list.')
+                    );
+                    if (!payment) {
+                        if (payment === undefined)
+                            target.send(`The item ${content} could not be found. Still waiting for valid item, \`free\` or \`no\`.`);
+                        return false;
+                    }
+                    this.offerPayment(gameInstance, seller, target, item, payment);
+                    msg.react(emoji.CHECK_BOX_WITH_CHECK);
+                }
+                return true;
+            }
+        );
+    }
+
+    async offerPayment(gameInstance, seller, target, itemSeller, itemTarget) {
+        /** @type {module:"discord.js".GuildChannel} */
+        const guildChannel = gameInstance.channel;
+        const nameTarget = guildChannel.members.get(target.id).displayName;
+        const nameSeller = guildChannel.members.get(seller.id).displayName;
+        const iconItemTarget = itemTarget ? itemTarget.display : '*nothing*';
+        gameInstance.askToPlayer(
+            seller,
+            `${nameTarget} offers ${iconItemTarget} in exchange for ${itemSeller.display}. Do you wish to accept? (Y/N)`,
+            msg => {
+                const content = msg.content;
+                const lower = content.toLowerCase();
+                if (lower.startsWith('y')) {
+                    target.send(`${emoji.CHECK_MARK_BUTTON} ${nameSeller} **accepted** to exchange ${itemSeller.display} for your ${iconItemTarget}.`);
+                    seller.send(`${emoji.CHECK_MARK_BUTTON} **accepted**.`);
+                    const characterSeller = gameInstance.characters.get(seller.id);
+                    const characterTarget = gameInstance.characters.get(target.id);
+                    characterSeller.giveItem(itemSeller, characterTarget);
+                    if (itemTarget) characterTarget.giveItem(itemTarget, characterSeller);
+                    return true;
+                } else if (lower.startsWith('n')) {
+                    target.send(`${emoji.CROSS_MARK} ${nameSeller} **refused** to exchange ${itemSeller.display} for your ${iconItemTarget}.`);
+                    seller.send(`${emoji.CROSS_MARK} ${nameSeller} **refused**.`);
+                    return true;
+                } else {
+                    seller.send(`Please, introduce Y or N.`);
+                    return false;
+                }
+            }
+        );
     }
 }
 
-class Role {
+class Item {
+    constructor(display, desc) {
+        this.display = display;
+        this.desc = desc;
+    }
+}
+
+class Character {
     /**
      * @param {string} roleName
      * @param {Action[]} actions
+     * @param {Item[]} startingInventory
      */
-    constructor(roleName, actions) {
+    constructor(roleName, actions, startingInventory = []) {
         this.roleName = roleName;
         this.actions = actions;
+        this.inventory = [].concat(startingInventory);
+    }
+
+    giveItem(item, characterTarget) {
+        const idx = this.inventory.indexOf(item);
+        if (idx >= 0) {
+            characterTarget.inventory.push(this.inventory.splice(idx, 1)[0]);
+        }
     }
 }
 
 const SELL_ACTION = new SellAction();
 
-class Police extends Role {
+class Police extends Character {
     constructor() {
-        super('Police', [SELL_ACTION]);
+        super('Police', [SELL_ACTION], [
+            new Item(emoji.CUPCAKE, 'a cupcake')
+        ]);
     }
 }
 
-class Assasin extends Role {
+class Assasin extends Character {
     constructor() {
-        super('Assasin', [SELL_ACTION]);
+        super('Assasin', [SELL_ACTION], [
+            new Item(emoji.MONEY_BAG, 'money')
+        ]);
     }
 }
 
-class Merchant extends Role {
+class Merchant extends Character {
     constructor() {
         super('Merchant', [SELL_ACTION]);
     }
 }
 
-class Rogue extends Role {
+class Rogue extends Character {
     constructor() {
         super('Rogue', [SELL_ACTION]);
+    }
+}
+
+function oneBasedIndexOrFind(array, indexOrProp, findCallback, onInvalidIdx) {
+    if (!isNaN(indexOrProp)) {
+        let idx;
+        try {
+            idx = parseInt(indexOrProp, 10);
+        } catch (e) {
+            return null;
+        }
+        if (idx > 0 && idx <= array.length) {
+            return array[idx - 1];
+        } else {
+            onInvalidIdx();
+            return null;
+        }
+    } else {
+        return array.find(findCallback);
     }
 }
 
