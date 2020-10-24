@@ -1,17 +1,26 @@
 class StateManager {
     constructor(messageToKey, stateConstructor) {
-        this.states = new Map();
-        this.messageToKey = messageToKey;
-        this.stateConstructor = stateConstructor;
+        this._states = new Map();
+        this._messageToKey = messageToKey;
+        this._stateConstructor = stateConstructor;
+    }
+
+    hasState(message) {
+        const key = this._messageToKey(message);
+        return this._states.has(key);
+    }
+
+    removeState(key) {
+        return this._states.delete(key);
     }
 
     getOrGenerateState(message, context) {
-        const key = this.messageToKey(message);
-        if (this.states.has(key)) {
-            return this.states.get(message.channel.id);
+        const key = this._messageToKey(message);
+        if (this._states.has(key)) {
+            return this._states.get(message.channel.id);
         } else {
-            const state = this.stateConstructor(message, context);
-            this.states.set(key, state);
+            const state = this._stateConstructor(message, context, key);
+            this._states.set(key, state);
             return state;
         }
     }
@@ -21,15 +30,16 @@ class ChannelStateManager extends StateManager {
     constructor(stateConstructor) {
         super(
             message => message.channel.id,
-            (message, bot) => stateConstructor(message.channel, bot)
+            (message, bot, key) => stateConstructor(message.channel, bot, key)
         );
     }
 }
 
 class BaseChannelState {
-    constructor(channel, context) {
+    constructor(channel, context, key) {
         this.channel = channel;
         this.context = context;
+        this.key = key;
     }
 
     lockChannel(callback) {
