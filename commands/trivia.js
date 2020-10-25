@@ -213,10 +213,8 @@ class ChannelState {
         if (this.currentIndex < this.questionBatch.length) {
             const question = this.questionBatch[this.currentIndex];
             this.currentIndex++;
-            logger.log(`Retrieved question ${this.currentIndex}`);
             if (question.category === this.category.name) return question;
             else {
-                logger.log(`Discarded by unmatching categories '${question.category}' != '${this.category.name}'`);
                 return this.getNextQuestion();
             }
         } else {
