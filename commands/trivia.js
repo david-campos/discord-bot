@@ -214,10 +214,11 @@ class ChannelState {
             const question = this.questionBatch[this.currentIndex];
             this.currentIndex++;
             logger.log(`Retrieved question ${this.currentIndex}`);
-            if (question.category === this.category.name) {
-                logger.log(`Discarded by unmatching categories '${question.category}' != '${this.category.name}'`)
-                return question;
-            } else return this.getNextQuestion();
+            if (question.category === this.category.name) return question;
+            else {
+                logger.log(`Discarded by unmatching categories '${question.category}' != '${this.category.name}'`);
+                return this.getNextQuestion();
+            }
         } else {
             await this.fetchNewQuestions();
             return this.getNextQuestion();
