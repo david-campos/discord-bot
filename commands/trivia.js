@@ -1,6 +1,7 @@
 const axios = require('axios');
 const {MessageEmbed} = require('discord.js');
 const {MEDALS, RIGHT, WRONG, OK, FREE, LETTER_EMOJI_PRE, A_EMOJI_BASE} = require('../guess_quizz/emojis');
+const moment = require('moment');
 
 const DIFFICULTY_EMOJI = {
     "easy": "\ud83d\ude0c",
@@ -22,6 +23,8 @@ function decodeBase64(text) {
 const path = require('path');
 const {Logger} = require("../logging/logger");
 const logger = new Logger(path.basename(__filename, '.js'));
+
+let categoriesCache = null;
 
 class Question {
     /**
@@ -380,16 +383,23 @@ module.exports = {
                 /** @type {{id: number, name: string}|null} */
                 let categoryObj = null;
                 if (args.length > 1) {
-                    const response = await axios.get('https://opentdb.com/api_category.php');
-                    if (!response.data.trivia_categories) {
-                        message.channel.send('Error trying to retrieve categories to check.').then();
-                        return;
+                    let categories;
+                    if (categoriesCache === null || moment().diff(categoriesCache[0], 'hours') > 24) {
+                        const response = await axios.get('https://opentdb.com/api_category.php');
+                        if (!response.data.trivia_categories) {
+                            message.channel.send('Error trying to retrieve categories to check.').then();
+                            return;
+                        }
+                        categories = response.data.trivia_categories;
+                        categoriesCache = [moment(), categories]
+                    } else {
+                        categories = categoriesCache[1];
                     }
                     const category = args.slice(1).join(' ');
-                    categoryObj = response.data.trivia_categories.find(c => c.name === category || c.id.toString() === category);
+                    categoryObj = categories.find(c => c.name === category || c.id.toString() === category);
                     if (!categoryObj) {
                         message.channel.send('**Invalid category, these are the valid ones:**\n' +
-                            response.data.trivia_categories.map(c => `${c.id}) ${c.name}`).join("\n")
+                            categories.map(c => `${c.id}) ${c.name}`).join("\n")
                         ).then();
                         return
                     }
