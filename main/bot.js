@@ -145,6 +145,11 @@ class Bot {
             const saludos = ["buenas", "qué tal", "holi", "hola", "hey", "sup"];
             const saludo = saludos[Math.round(Math.random() * (saludos.length - 1))];
             msg.reply(`${saludo}, ${apelativoRandom()}!`).then();
+        } else if (msg.content.toLowerCase().includes('b') && msg.content.toLowerCase().includes('noc')) {
+            const despedidas = ["buenas noches", "que sueñes con angelitos", "duerme bien", "descansa",
+                "no dejes que te muerdan las chinches", "dulces sueños"];
+            const despedida = despedidas[Math.round(Math.random() * (despedidas.length - 1))];
+            msg.reply(`${despedida}, ${apelativoRandom()}!`).then();
         } else {
             msg.reply(`no sé qué decirte, ${apelativoRandom()}, ¿por qué no pruebas \`${this.config.prefix}ayuda\`?`).then();
         }
