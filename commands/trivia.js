@@ -190,6 +190,7 @@ class ChannelState {
         this.questionBatch = [];
         this.currentIndex = null;
         this.questionsPerBatch = 10;
+        this.category = null;
         this.fetchingQuestions = false;
         /** @type {{resolve: function(PromiseLike<void>?):void, reject: function(any):void}[]} */
         this.resolveOnFetched = [];
@@ -213,7 +214,10 @@ class ChannelState {
             const question = this.questionBatch[this.currentIndex];
             this.currentIndex++;
             logger.log(`Retrieved question ${this.currentIndex}`);
-            return question;
+            if (question.category === this.category.name) {
+                logger.log(`Discarded by unmatching categories '${question.category}' != '${this.category.name}'`)
+                return question;
+            } else return this.getNextQuestion();
         } else {
             await this.fetchNewQuestions();
             return this.getNextQuestion();
@@ -255,7 +259,8 @@ class ChannelState {
         this.fetchingQuestions = true; // lock
         if (!this.token) await this.fetchNewToken();
         const response = await axios.get(
-            `https://opentdb.com/api.php?amount=${this.questionsPerBatch}&encode=base64&token=${this.token}`);
+            `https://opentdb.com/api.php?amount=${this.questionsPerBatch}&encode=base64&token=${this.token}${
+                this.category ? `&category=${this.category.id}` : ''}`);
         if (response.data.response_code === 0) {
             logger.log(`Fetching questions (${this.questionsPerBatch})`);
             this.questionBatch = response.data.results.map(q => new Question(q));
@@ -308,6 +313,11 @@ module.exports = {
                     description: 'number of questions for the game to propose (when proposing a new game)',
                     format: 'integer greater than zero',
                     defaultValue: '10'
+                }, {
+                    name: 'category',
+                    description: 'category of the questions',
+                    format: 'name or category id',
+                    defaultValue: 'any category'
                 }]
             },
             {
@@ -368,12 +378,32 @@ module.exports = {
                 if (!isNaN(parseInt(args[0], 10)) && parseInt(args[0], 10) > 0) {
                     questions = parseInt(args[0], 10);
                 }
+                /** @type {{id: number, name: string}|null} */
+                let categoryObj = null;
+                if (args.length > 1) {
+                    const response = await axios.get('https://opentdb.com/api_category.php');
+                    if (!response.data.trivia_categories) {
+                        message.channel.send('Error trying to retrieve categories to check.').then();
+                        return;
+                    }
+                    const category = args.slice(1).join(' ');
+                    categoryObj = response.data.trivia_categories.find(c => c.name === category || c.id.toString() === category);
+                    if (!categoryObj) {
+                        message.channel.send('**Invalid category, these are the valid ones:**\n' +
+                            response.data.trivia_categories.map(c => `${c.id}) ${c.name}`).join("\n")
+                        ).then();
+                        return
+                    }
+                }
                 state.questionsPerBatch = questions;
+                state.category = categoryObj || null;
                 state.onGoingGame = new QuestionGame(state, message.author, questions);
                 const embed = new MessageEmbed()
                     .setTitle('\ud83d\udcda Trivia game!')
                     .setDescription(
-                        `${message.author.username} has proposed a trivia game with ${questions} questions!\n`
+                        `${message.author.username} has proposed a trivia game with ${questions} questions${
+                            categoryObj ? ` from the category *${categoryObj.name}*` : ''
+                        }!\n`
                         + `**Send \`${context.config.prefix}trivia join\` to join or leave.**\n`
                         + `*The game will start when ${message.author.username} `
                         + `introduces \`${context.config.prefix}trivia start\`.*\n\n`
