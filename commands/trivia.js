@@ -169,7 +169,7 @@ class QuestionGame {
 
     async nextQuestion() {
         this.currentQuestion = null;
-        this.currentQuestion = await this.channelState.getNextQuestion();
+        this.currentQuestion = await this.channelState.getNextQuestion(this.numQuestions - this.answers.length);
     }
 
     /** @return {module:"discord.js".MessageEmbed|null} */
@@ -193,8 +193,6 @@ class ChannelState {
         this.context = context;
         this.questionBatch = [];
         this.cachedForLater = []; // not in the current categories but may be valid for later
-        this.currentIndex = null;
-        this.questionsPerBatch = 10;
         this.categories = [];
         this.categoryNames = [];
         this.fetchingQuestions = false;
@@ -239,32 +237,39 @@ class ChannelState {
     /**
      * @returns {Question}
      */
-    async getNextQuestion() {
-        if (this.currentIndex < this.questionBatch.length) {
-            const question = this.questionBatch[this.currentIndex];
-            this.currentIndex++;
+    async getNextQuestion(questionsLeft) {
+        if (this.questionBatch.length > 0) {
+            const question = this.questionBatch.shift();
             if (this.categories.length === 0
                 || this.categoryNames.includes(question.category))
                 return question;
-            else
-                return this.getNextQuestion();
+            else {
+                this.cachedForLater.push(question);
+                return this.getNextQuestion(questionsLeft);
+            }
         } else {
-            await this.fetchNewQuestions();
-            return this.getNextQuestion();
+            await this.fetchNewQuestions(questionsLeft);
+            return this.getNextQuestion(questionsLeft);
         }
     }
 
     /**
      * Checks that we have a mix of the categories in the batch
      */
-    async checkCategoriesInBatch() {
+    async checkCategoriesInBatch(questionsLeft) {
         const filteredCategories = this.questionBatch
-            .slice(this.currentIndex)
             .map(q => q.category)
-            .filter(c => this.categoryNames.includes(c));
-        if (filteredCategories.length <= 0) return; // we are find, next get will get the necessary ones
-        if (filteredCategories.length < this.categories.length)
-            await this.fetchNewQuestions(); // fetch some questions and mix them
+            .filter(c => this.categoryNames.includes(c))
+            .filter((c, idx, array) => array.indexOf(c) === idx)
+            .length;
+        logger.log(`Checking categories: ${filteredCategories}`);
+        if (filteredCategories <= 0) return; // we are fine, next get will get the necessary ones
+        if (filteredCategories < this.categories.length) {
+            await this.fetchNewQuestions(Math.max(
+                questionsLeft - this.questionBatch.length,
+                Math.ceil(questionsLeft / this.categories.length)
+            )); // fetch some questions and mix them
+        }
     }
 
     async fetchNewToken() {
@@ -291,7 +296,7 @@ class ChannelState {
         }
     }
 
-    async fetchNewQuestions() {
+    async fetchNewQuestions(totalAmount) {
         if (this.fetchingQuestions) {
             // Wait for fetch to end
             logger.log('Fetch going on, wait to end.');
@@ -301,45 +306,54 @@ class ChannelState {
         }
         this.fetchingQuestions = true; // lock
         if (!this.token) await this.fetchNewToken();
-        const amount = this.questionBatch.length - this.currentIndex < 1
-            ? this.questionsPerBatch
-            : this.questionBatch.length - this.currentIndex; // Never ask for more than items left
-        const urlParams =`amount=${amount}&encode=base64&token=${this.token}${
-            this.categories.length === 1 ? `&category=${this.categories[0].id}` : ''
-        }`;
-        logger.log(`Fetching questions (${urlParams}) ${this.questionBatch.length - this.currentIndex < 1 ? 'not-full' : 'full'}`);
-        const response = await axios.get(`https://opentdb.com/api.php?${urlParams}`);
-        if (response.data.response_code === 0) {
-            const questions = response.data.results.map(q => new Question(q)).map(q => [
-                q,
-                this.categories.length === 0 || this.categoryNames.includes(q.category)
-            ]);
-            const toCache = questions.filter(([_, validCategory]) => !validCategory).map(([q]) => q);
-            this.cachedForLater = this.cachedForLater.concat(toCache);
-            const toQuestions = questions.filter(([_, validCategory]) => validCategory).map(([q]) => q);
-            logger.log(`Cached ${toCache.length} questions; used ${toQuestions.length}.`);
-            if (this.questionBatch.length - this.currentIndex < 1) {
-                this.questionBatch = toQuestions;
+        try {
+            if (this.categories.length === 0) {
+                await this._fetchQuestionsForCategory(totalAmount, null);
             } else {
-                // mix randomly
-                for (const q of toQuestions) {
-                    const idx = Math.round(Math.random() * (this.questionBatch.length - this.currentIndex)) + this.currentIndex;
-                    this.questionBatch.splice(idx, 0, q);
+                const partialAmount = Math.ceil(totalAmount / this.categories.length);
+                const startingCategory = Math.round(Math.random() * (this.categories.length - 1));
+                let obtained = 0;
+                const promises = [];
+                for (let i = startingCategory; obtained < totalAmount; i = (i + 1) % this.categories.length) {
+                    promises.push(this._fetchQuestionsForCategory(partialAmount, this.categories[i]));
+                    obtained += partialAmount;
                 }
+                await Promise.all(promises);
             }
-            this.currentIndex = 0;
             this.fetchingQuestions = false; // unlock
             this.resolveOnFetched.forEach(obj => obj.resolve());
             this.resolveOnFetched = [];
-        } else if (response.data.response_code === 4) {
-            await this.resetToken();
-            await this.fetchNewQuestions();
-        } else {
-            logger.error(response.data);
+        } catch (e) {
             this.fetchingQuestions = false; // unlock
-            this.resolveOnFetched.forEach(obj => obj.reject(response.data));
-            this.resolveOnFetched = [];
-            throw new Error('Could not retrieve new questions.');
+            if (e.response_code === 4) {
+                await this.resetToken();
+                await this.fetchNewQuestions();
+            } else {
+                this.resolveOnFetched.forEach(obj => obj.reject(e));
+                this.resolveOnFetched = [];
+                logger.error(e);
+                throw e;
+            }
+        }
+    }
+
+    async _fetchQuestionsForCategory(amount, category) {
+        if (!this.token) throw Error('token should have been fetched before calling this method');
+        amount = Math.min(amount, 50); // API does not allow for more than 50 questions
+        const urlParams = `amount=${amount}&encode=base64&token=${this.token}${
+            category ? `&category=${category.id}` : ''
+        }`;
+        logger.log(`Fetching questions (amount: ${amount}, category: ${category ? category.name : 'any'})`);
+        const response = await axios.get(`https://opentdb.com/api.php?${urlParams}`);
+        if (response.data.response_code === 0) {
+            const questions = response.data.results.map(q => new Question(q));
+            // mix randomly
+            for (const q of questions) {
+                const idx = Math.round(Math.random() * this.questionBatch.length);
+                this.questionBatch.splice(idx, 0, q);
+            }
+        } else {
+            throw response.data;
         }
     }
 }
@@ -473,7 +487,6 @@ module.exports = {
                         return
                     }
                 }
-                state.questionsPerBatch = questions;
                 state.changeCategories(categoryObjs);
                 state.onGoingGame = new QuestionGame(state, message.author, questions);
                 const embed = new MessageEmbed()
