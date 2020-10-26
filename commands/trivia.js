@@ -107,7 +107,7 @@ class QuestionGame {
 
         this.started = true;
         this.channelState.lockChannel(this.answerReception.bind(this));
-        this.channelState.checkCategoriesInBatch().then(); // async is fine
+        this.channelState.checkCategoriesInBatch(this.numQuestions).then(); // async is fine
         await this.nextQuestion();
     }
 
@@ -257,18 +257,14 @@ class ChannelState {
      * Checks that we have a mix of the categories in the batch
      */
     async checkCategoriesInBatch(questionsLeft) {
-        const filteredCategories = this.questionBatch
-            .map(q => q.category)
-            .filter(c => this.categoryNames.includes(c))
-            .filter((c, idx, array) => array.indexOf(c) === idx)
-            .length;
-        logger.log(`Checking categories: ${filteredCategories}`);
-        if (filteredCategories <= 0) return; // we are fine, next get will get the necessary ones
-        if (filteredCategories < this.categories.length) {
+        if (this.categories.length === 0) return;
+        const missingCategories = this.categories
+            .filter(c => !this.questionBatch.find(q => q.category === c.name));
+        if (missingCategories.length > 0) {
             await this.fetchNewQuestions(Math.max(
                 questionsLeft - this.questionBatch.length,
                 Math.ceil(questionsLeft / this.categories.length)
-            )); // fetch some questions and mix them
+            ), missingCategories); // fetch some questions and mix them
         }
     }
 
@@ -296,7 +292,7 @@ class ChannelState {
         }
     }
 
-    async fetchNewQuestions(totalAmount) {
+    async fetchNewQuestions(totalAmount, categories) {
         if (this.fetchingQuestions) {
             // Wait for fetch to end
             logger.log('Fetch going on, wait to end.');
@@ -304,18 +300,21 @@ class ChannelState {
                 this.resolveOnFetched.push({resolve: resolve, reject: reject}));
             return;
         }
+        if (!categories) {
+            categories = this.categories;
+        }
         this.fetchingQuestions = true; // lock
         if (!this.token) await this.fetchNewToken();
         try {
-            if (this.categories.length === 0) {
+            if (categories === 0) {
                 await this._fetchQuestionsForCategory(totalAmount, null);
             } else {
-                const partialAmount = Math.ceil(totalAmount / this.categories.length);
-                const startingCategory = Math.round(Math.random() * (this.categories.length - 1));
+                const partialAmount = Math.ceil(totalAmount / categories.length);
+                const startingCategory = Math.round(Math.random() * (categories.length - 1));
                 let obtained = 0;
                 const promises = [];
-                for (let i = startingCategory; obtained < totalAmount; i = (i + 1) % this.categories.length) {
-                    promises.push(this._fetchQuestionsForCategory(partialAmount, this.categories[i]));
+                for (let i = startingCategory; obtained < totalAmount; i = (i + 1) % categories.length) {
+                    promises.push(this._fetchQuestionsForCategory(partialAmount, categories[i]));
                     obtained += partialAmount;
                 }
                 await Promise.all(promises);
