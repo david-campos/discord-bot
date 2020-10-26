@@ -107,6 +107,7 @@ class QuestionGame {
 
         this.started = true;
         this.channelState.lockChannel(this.answerReception.bind(this));
+        this.channelState.checkCategoriesInBatch().then(); // async is fine
         await this.nextQuestion();
     }
 
@@ -191,14 +192,40 @@ class ChannelState {
         this.channel = channel;
         this.context = context;
         this.questionBatch = [];
+        this.cachedForLater = []; // not in the current categories but may be valid for later
         this.currentIndex = null;
         this.questionsPerBatch = 10;
-        this.category = null;
+        this.categories = [];
+        this.categoryNames = [];
         this.fetchingQuestions = false;
         /** @type {{resolve: function(PromiseLike<void>?):void, reject: function(any):void}[]} */
         this.resolveOnFetched = [];
         /** @type {QuestionGame} */
         this.onGoingGame = null;
+    }
+
+    changeCategories(categories) {
+        const newCategories = categories.map(c => c.id);
+        const oldCategories = this.categories.map(c => c.id);
+        const diff = newCategories
+            .filter(id => !oldCategories.includes(id))
+            .concat(oldCategories.filter(id => !newCategories.includes(id)))
+            .length;
+        if (diff > 0) {
+            this.categories = categories;
+            this.categoryNames = categories.map(c => c.name);
+            if (this.categories.length > 0) {
+                // Leave in cached the unnecessary ones
+                const all = this.cachedForLater.concat(this.questionBatch)
+                    .map(q => [q, this.categoryNames.includes(q.category)]);
+                this.cachedForLater = all.filter(([_, validCategory]) => !validCategory).map(([q]) => q);
+                this.questionBatch = all.filter(([_, validCategory]) => validCategory).map(([q]) => q);
+            } else {
+                this.questionBatch = this.questionBatch.concat(this.cachedForLater);
+                this.cachedForLater = [];
+            }
+            logger.log(`Categories change: ${this.cachedForLater.length} cached for later and ${this.questionBatch.length} used.`)
+        }
     }
 
     lockChannel(callback) {
@@ -216,14 +243,28 @@ class ChannelState {
         if (this.currentIndex < this.questionBatch.length) {
             const question = this.questionBatch[this.currentIndex];
             this.currentIndex++;
-            if (question.category === this.category.name) return question;
-            else {
+            if (this.categories.length === 0
+                || this.categoryNames.includes(question.category))
+                return question;
+            else
                 return this.getNextQuestion();
-            }
         } else {
             await this.fetchNewQuestions();
             return this.getNextQuestion();
         }
+    }
+
+    /**
+     * Checks that we have a mix of the categories in the batch
+     */
+    async checkCategoriesInBatch() {
+        const filteredCategories = this.questionBatch
+            .slice(this.currentIndex)
+            .map(q => q.category)
+            .filter(c => this.categoryNames.includes(c));
+        if (filteredCategories.length <= 0) return; // we are find, next get will get the necessary ones
+        if (filteredCategories.length < this.categories.length)
+            await this.fetchNewQuestions(); // fetch some questions and mix them
     }
 
     async fetchNewToken() {
@@ -260,12 +301,32 @@ class ChannelState {
         }
         this.fetchingQuestions = true; // lock
         if (!this.token) await this.fetchNewToken();
-        const response = await axios.get(
-            `https://opentdb.com/api.php?amount=${this.questionsPerBatch}&encode=base64&token=${this.token}${
-                this.category ? `&category=${this.category.id}` : ''}`);
+        const amount = this.questionBatch.length - this.currentIndex < 1
+            ? this.questionsPerBatch
+            : this.questionBatch.length - this.currentIndex; // Never ask for more than items left
+        const urlParams =`amount=${amount}&encode=base64&token=${this.token}${
+            this.categories.length === 1 ? `&category=${this.categories[0].id}` : ''
+        }`;
+        logger.log(`Fetching questions (${urlParams}) ${this.questionBatch.length - this.currentIndex < 1 ? 'not-full' : 'full'}`);
+        const response = await axios.get(`https://opentdb.com/api.php?${urlParams}`);
         if (response.data.response_code === 0) {
-            logger.log(`Fetching questions (${this.questionsPerBatch})`);
-            this.questionBatch = response.data.results.map(q => new Question(q));
+            const questions = response.data.results.map(q => new Question(q)).map(q => [
+                q,
+                this.categories.length === 0 || this.categoryNames.includes(q.category)
+            ]);
+            const toCache = questions.filter(([_, validCategory]) => !validCategory).map(([q]) => q);
+            this.cachedForLater = this.cachedForLater.concat(toCache);
+            const toQuestions = questions.filter(([_, validCategory]) => validCategory).map(([q]) => q);
+            logger.log(`Cached ${toCache.length} questions; used ${toQuestions.length}.`);
+            if (this.questionBatch.length - this.currentIndex < 1) {
+                this.questionBatch = toQuestions;
+            } else {
+                // mix randomly
+                for (const q of toQuestions) {
+                    const idx = Math.round(Math.random() * (this.questionBatch.length - this.currentIndex)) + this.currentIndex;
+                    this.questionBatch.splice(idx, 0, q);
+                }
+            }
             this.currentIndex = 0;
             this.fetchingQuestions = false; // unlock
             this.resolveOnFetched.forEach(obj => obj.resolve());
@@ -316,8 +377,8 @@ module.exports = {
                     format: 'integer greater than zero',
                     defaultValue: '10'
                 }, {
-                    name: 'category',
-                    description: 'category of the questions',
+                    name: 'categories',
+                    description: 'category or categories of the questions, separated by commas',
                     format: 'name or category id',
                     defaultValue: 'any category'
                 }]
@@ -380,8 +441,8 @@ module.exports = {
                 if (!isNaN(parseInt(args[0], 10)) && parseInt(args[0], 10) > 0) {
                     questions = parseInt(args[0], 10);
                 }
-                /** @type {{id: number, name: string}|null} */
-                let categoryObj = null;
+                /** @type {{id: number, name: string}[]} */
+                let categoryObjs = [];
                 if (args.length > 1) {
                     let categories;
                     if (categoriesCache === null || moment().diff(categoriesCache[0], 'hours') > 24) {
@@ -395,23 +456,33 @@ module.exports = {
                     } else {
                         categories = categoriesCache[1];
                     }
-                    const category = args.slice(1).join(' ');
-                    categoryObj = categories.find(c => c.name === category || c.id.toString() === category);
-                    if (!categoryObj) {
-                        message.channel.send('**Invalid category, these are the valid ones:**\n' +
-                            categories.map(c => `${c.id}) ${c.name}`).join("\n")
+                    const category = args.slice(1).join(' ').split(',').map(p => p.trim().toLocaleLowerCase());
+                    categoryObjs = categories.filter(c => category.includes(
+                        c.name.toLocaleLowerCase()) || category.includes(c.id.toString()));
+                    if (categoryObjs.length < category.length) {
+                        const invalid = category.filter(
+                            cat => !categories.find(
+                                c => c.name.toLocaleLowerCase() === cat.toLocaleLowerCase() || cat === c.id.toString()
+                            )
+                        ).map(
+                            cat => `\`${cat}\``
+                        ).join(', ');
+                        message.channel.send(`**Invalid categories: ${invalid}. These are the valid ones (can be referenced by name or number):**\n` +
+                            `${categories.map(c => `${c.id}) ${c.name}`).join("\n")}`
                         ).then();
                         return
                     }
                 }
                 state.questionsPerBatch = questions;
-                state.category = categoryObj || null;
+                state.changeCategories(categoryObjs);
                 state.onGoingGame = new QuestionGame(state, message.author, questions);
                 const embed = new MessageEmbed()
                     .setTitle('\ud83d\udcda Trivia game!')
                     .setDescription(
                         `${message.author.username} has proposed a trivia game with ${questions} questions${
-                            categoryObj ? ` from the category *${categoryObj.name}*` : ''
+                            categoryObjs.length > 0 ? ` from the categor${categoryObjs.length > 1 ? 'ies' : 'y'} ${
+                                categoryObjs.map(obj => `*${obj.name}*`).join(', ')
+                            }` : ''
                         }!\n`
                         + `**Send \`${context.config.prefix}trivia join\` to join or leave.**\n`
                         + `*The game will start when ${message.author.username} `
