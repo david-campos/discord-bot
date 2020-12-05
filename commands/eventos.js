@@ -49,15 +49,6 @@ const SPECIAL_EVENTS = [
         description: "Me llena de orgullo y satisfacción desearos feliz navidad.",
         imageUrl: "https://media.giphy.com/media/9w475hDWEPVlu/giphy.gif",
         start: moment('24/12 23:00', "DD-MM HH:mm")
-    },
-    /** @type {SpecialEvent} */
-    {
-        id: -3,
-        title: "Test",
-        color: "FF0000",
-        description: "This, is a test",
-        imageUrl: "https://media.giphy.com/media/fXgKfzV4aaHQI/giphy.gif",
-        start: moment().add(20, 'seconds')
     }
 ];
 
@@ -385,7 +376,6 @@ function parseInputDate(dateIpt) {
  */
 async function eventAlert(context, event, isSpecial) {
     if (isSpecial) {
-        logger.log('Alerting event', event); // TODO: remove
         await sendEmbedSpecial(context, event);
         event.lastNotified = moment();
     } else {
@@ -518,16 +508,15 @@ async function sendEmbedSpecial(context, event) {
         guildChannels.sort((a, b) => a.position - b.position);
         return guildChannels.first();
     }).filter(c => c !== null && c !== undefined);
-    logger.log('channels', channels);
     const user = context.client.user;
     const embed = new MessageEmbed()
         .setTitle(event.title);
-    if (user) embed.setAuthor(user.username, user.defaultAvatarURL)
+    if (user) embed.setAuthor(user.username, user.avatar)
     embed.setFooter('Special event');
     embed.setDescription(event.description);
     embed.setColor(parseInt(event.color, 16));
     if (event.imageUrl) embed.setImage(event.imageUrl);
-    await Promise.all(channels.slice(0, 1).map(ch => ch.send(embed))); // TODO: remove slice after test
+    await Promise.all(channels.map(ch => ch.send(embed)));
 }
 
 /**
