@@ -27,6 +27,41 @@ const TIMESTAMP_INPUT_ONLY_DATE = ['DD/MM/YYYY', 'DD/MM/YY', 'D/M/YY', 'D/M'];
 const TIMESTAMP_OUTPUT = TIMESTAMP_INPUT[0];
 
 /**
+ * @class SpecialEvent
+ * @property {number} id - Make less than 0 so it does not collide with saved ones
+ * @property {string} title
+ * @property {string} description
+ * @property {moment.Moment} start
+ * @property {string} imageUrl
+ * @property {string} color
+ * @property {moment.Moment} [lastNotified]
+ */
+
+/**
+ * @type {SpecialEvent[]}
+ */
+const SPECIAL_EVENTS = [
+    /** @type {SpecialEvent} */
+    {
+        id: -2,
+        title: "¡Feliz navidad!",
+        color: "FF0000",
+        description: "Me llena de orgullo y satisfacción desearos feliz navidad.",
+        imageUrl: "https://media.giphy.com/media/9w475hDWEPVlu/giphy.gif",
+        start: moment({M: 12, d: 25, h: 23, m: 0, s: 0})
+    },
+    /** @type {SpecialEvent} */
+    {
+        id: -3,
+        title: "Test",
+        color: "FF0000",
+        description: "This, is a test",
+        imageUrl: "https://media.giphy.com/media/fXgKfzV4aaHQI/giphy.gif",
+        start: moment().add(1, 'minutes')
+    }
+];
+
+/**
  * @type {{c: ExecuteCallback, crear: ExecuteCallback, mostrar: ExecuteCallback, borrar: ExecuteCallback, limpiar: ExecuteCallback}}
  */
 const SUBCOMMANDS = {
@@ -207,11 +242,18 @@ const SUBCOMMAND_ARGS = [
             {name: '-fin fecha', description: 'indica la fecha y hora de finalización', optional: true},
             {name: '-descripcion descripcion', description: 'descripción del evento', optional: true},
             {name: '-color color', description: 'color del evento', optional: true, format: 'hexadecimal, 6 dígitos'},
-            {name: '-link link', description: 'link para abrir al clickar el evento', optional: true, format: 'url completa'},
+            {
+                name: '-link link',
+                description: 'link para abrir al clickar el evento',
+                optional: true,
+                format: 'url completa'
+            },
             {name: '-lugar lugar', description: 'lugar indicado en el pie del evento', optional: true},
             {name: '-imagen url', description: 'url de la imagen del evento', optional: true, format: 'url completa'},
-            {name: '-notificar fecha', description: 'fecha y hora de notificación del evento', optional: true,
-                defaultValue: '5 minutos antes o el mismo día a las 8:00'}
+            {
+                name: '-notificar fecha', description: 'fecha y hora de notificación del evento', optional: true,
+                defaultValue: '5 minutos antes o el mismo día a las 8:00'
+            }
         ]
     },
     {
@@ -338,36 +380,43 @@ function parseInputDate(dateIpt) {
 /**
  * Alerts about an event to the corresponding channel!
  * @param {Bot} context
- * @param event
+ * @param {Event | SpecialEvent} event
+ * @param {boolean} isSpecial - if true, it is SpecialEvent
  */
-async function eventAlert(context, event) {
-    const duration = moment.duration(
-        moment(event.start, TIMESTAMP_FORMAT)
-            .seconds(0).milliseconds(0).diff(
-            moment().seconds(0).milliseconds(0)
-        )
-    ).locale('es');
-    await sendEmbed(context, event,
-        `Evento ${duration.humanize(true)}:`);
-    await destroyEvent(event, 'notified');
+async function eventAlert(context, event, isSpecial) {
+    if (isSpecial) {
+        await sendEmbedSpecial(context, event);
+        event.lastNotified = moment();
+    } else {
+        const duration = moment.duration(
+            moment(event.start, TIMESTAMP_FORMAT)
+                .seconds(0).milliseconds(0).diff(
+                moment().seconds(0).milliseconds(0)
+            )
+        ).locale('es');
+        await sendEmbed(context, event,
+            `Evento ${duration.humanize(true)}:`);
+        await destroyEvent(event, 'notified');
+    }
 }
 
-function scheduleEvent(context, event, notifyIfPassed) {
-    const notify = moment(event.notifyAt, TIMESTAMP_FORMAT);
+function scheduleEvent(context, event, notifyIfPassed, isSpecialEvent = false) {
+    const notify = isSpecialEvent ? event.start : moment(event.notifyAt, TIMESTAMP_FORMAT);
     const now = moment();
     // Ignore events for more than 6h after this
     // (scheduling should be repeated in less than 6h)
     if (notify.isAfter(moment().add(6, 'hours'))) return;
     if (notify.isAfter(now)) {
         if (scheduledEvents.has(event.id)) return;
-        scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event), notify.diff(now)));
-        logger.log('event scheduled', event.id, event.title, notify.format(),
+        scheduledEvents.set(event.id, setTimeout(eventAlert.bind(null, context, event, isSpecialEvent), notify.diff(now)));
+        logger.log((isSpecialEvent ? 'special ' : '') + 'event scheduled', event.id, event.title, notify.format(),
             `(${notify.diff(now, 'minutes', true).toFixed(2)}mins.)`);
     } else if (notifyIfPassed) {
-        eventAlert(context, event).then();
-        logger.log('event alerted in scheduling', event.id, event.title, notify.format());
+        eventAlert(context, event, isSpecialEvent).then();
+        logger.log((isSpecialEvent ? 'special ' : '') + 'event alerted in scheduling', event.id, event.title, notify.format());
     } else {
-        destroyEvent(event, 'dimissed').then();
+        if (!isSpecialEvent)
+            destroyEvent(event, 'dimissed').then();
         logger.log('event dismissed in scheduling', event.id, event.title, notify.format());
     }
 }
@@ -378,6 +427,9 @@ async function scheduleNextEvents(context, doNotRepeat) {
         setTimeout(scheduleNextEvents.bind(null, context), 6 * 60 * 60 * 1000);
     }
 
+    /**
+     * @var {Event[]} toSchedule
+     */
     const toSchedule = await Event.findAll({
         where: {
             notifyAt: {
@@ -387,11 +439,22 @@ async function scheduleNextEvents(context, doNotRepeat) {
     });
     logger.log(`scheduling events for next 6h (${toSchedule.length} events)`);
     toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
+    const specialToSchedule = nextSpecialEvents(6, 'hours');
+    specialToSchedule.forEach(toSch => scheduleEvent(context, toSch, true, true));
     const deleted = await Event.destroy({
         where: {notifyAt: {[Sequelize.Op.lte]: moment().format(TIMESTAMP_FORMAT)}}
     });
     // Should be 0 but just in case
     if (deleted) logger.log(`deleted ${deleted} events (passed).`);
+}
+
+function nextSpecialEvents(amount, unit) {
+    const now = moment();
+    const maxStart = now.add(amount, unit); // do not schedule for after this
+    const minStart = now.subtract(2, 'hours'); // if it has passed for more than 2 hours better not notify
+    const maxNotified = now.subtract(1, 'day'); // do not schedule if we know it has been notified before
+    return SPECIAL_EVENTS.filter(e =>
+        e.start.isBefore(maxStart) && e.start.isAfter(minStart) && (!e.lastNotified || e.lastNotified.isBefore(maxNotified)));
 }
 
 /**
@@ -430,6 +493,33 @@ async function sendEmbed(context, event, messageText) {
     } else {
         await channel.send(embed);
     }
+}
+
+/**
+ *
+ * @param context
+ * @param {SpecialEvent} event
+ * @return {Promise<void>}
+ */
+async function sendEmbedSpecial(context, event) {
+    /**
+     * @type {module:"discord.js".TextChannel[]}
+     */
+    const channels = context.client.guilds.cache.map(guild => {
+        const guildChannels = guild.channels.filter(c => c.type === 'text');
+        if (!guildChannels) return null;
+        guildChannels.sort((a, b) => a.position - b.position);
+        return guildChannels[0];
+    }).filter(c => !!c).slice(0, 1); // TODO: remove slice after test
+    const user = context.client.user;
+    const embed = new MessageEmbed()
+        .setTitle(event.title);
+    if (user) embed.setAuthor(user.username, user.defaultAvatarURL)
+    embed.setFooter('Special event');
+    embed.setDescription(event.description);
+    embed.setColor(parseInt(event.color, 16));
+    if (event.imageUrl) embed.setImage(event.imageUrl);
+    await Promise.all(channels.map(ch => ch.send(embed)));
 }
 
 /**
