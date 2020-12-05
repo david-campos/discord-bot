@@ -48,7 +48,7 @@ const SPECIAL_EVENTS = [
         color: "FF0000",
         description: "Me llena de orgullo y satisfacción desearos feliz navidad.",
         imageUrl: "https://media.giphy.com/media/9w475hDWEPVlu/giphy.gif",
-        start: moment({M: 12, d: 25, h: 23, m: 0, s: 0})
+        start: moment('24/12 23:00', "DD-MM HH:mm")
     },
     /** @type {SpecialEvent} */
     {
@@ -57,7 +57,7 @@ const SPECIAL_EVENTS = [
         color: "FF0000",
         description: "This, is a test",
         imageUrl: "https://media.giphy.com/media/fXgKfzV4aaHQI/giphy.gif",
-        start: moment().add(1, 'minutes')
+        start: moment().add(20, 'seconds')
     }
 ];
 
@@ -385,6 +385,7 @@ function parseInputDate(dateIpt) {
  */
 async function eventAlert(context, event, isSpecial) {
     if (isSpecial) {
+        logger.log('Alerting event', event); // TODO: remove
         await sendEmbedSpecial(context, event);
         event.lastNotified = moment();
     } else {
@@ -512,11 +513,13 @@ async function sendEmbedSpecial(context, event) {
      * @type {module:"discord.js".TextChannel[]}
      */
     const channels = context.client.guilds.cache.map(guild => {
-        const guildChannels = guild.channels.filter(c => c.type === 'text');
+        const guildChannels = guild.channels.cache.filter(c => c.type === 'text');
+        logger.log('in', guild.name, guildChannels);
         if (!guildChannels) return null;
         guildChannels.sort((a, b) => a.position - b.position);
         return guildChannels[0];
-    }).filter(c => !!c).slice(0, 1); // TODO: remove slice after test
+    }).filter(c => !!c);
+    logger.log(channels);
     const user = context.client.user;
     const embed = new MessageEmbed()
         .setTitle(event.title);
@@ -525,7 +528,7 @@ async function sendEmbedSpecial(context, event) {
     embed.setDescription(event.description);
     embed.setColor(parseInt(event.color, 16));
     if (event.imageUrl) embed.setImage(event.imageUrl);
-    await Promise.all(channels.map(ch => ch.send(embed)));
+    await Promise.all(channels.slice(0, 1).map(ch => ch.send(embed))); // TODO: remove slice after test
 }
 
 /**
