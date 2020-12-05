@@ -437,10 +437,15 @@ async function scheduleNextEvents(context, doNotRepeat) {
             }
         }
     });
-    logger.log(`scheduling events for next 6h (${toSchedule.length} events)`);
-    toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
+    if (toSchedule.length > 0) {
+        logger.log(`scheduling events for next 6h (${toSchedule.length} events)`);
+        toSchedule.forEach(toSch => scheduleEvent(context, toSch, true));
+    }
     const specialToSchedule = nextSpecialEvents(6, 'hours');
-    specialToSchedule.forEach(toSch => scheduleEvent(context, toSch, true, true));
+    if (specialToSchedule.length > 0) {
+        logger.log(`scheduling special events for next 6h (${specialToSchedule.length} events)`);
+        specialToSchedule.forEach(toSch => scheduleEvent(context, toSch, true, true));
+    }
     const deleted = await Event.destroy({
         where: {notifyAt: {[Sequelize.Op.lte]: moment().format(TIMESTAMP_FORMAT)}}
     });
@@ -450,9 +455,10 @@ async function scheduleNextEvents(context, doNotRepeat) {
 
 function nextSpecialEvents(amount, unit) {
     const now = moment();
-    const maxStart = now.add(amount, unit); // do not schedule for after this
-    const minStart = now.subtract(2, 'hours'); // if it has passed for more than 2 hours better not notify
-    const maxNotified = now.subtract(1, 'day'); // do not schedule if we know it has been notified before
+    const maxStart = now.clone().add(amount, unit); // do not schedule for after this
+    const minStart = now.clone().subtract(2, 'hours'); // if it has passed for more than 2 hours better not notify
+    const maxNotified = now.clone().subtract(1, 'day'); // do not schedule if we know it has been notified before
+    logger.log('min', minStart.format(), 'max', maxStart.format(), 'not', maxNotified.format(), 'events', SPECIAL_EVENTS);
     return SPECIAL_EVENTS.filter(e =>
         e.start.isBefore(maxStart) && e.start.isAfter(minStart) && (!e.lastNotified || e.lastNotified.isBefore(maxNotified)));
 }
