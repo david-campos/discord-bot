@@ -514,12 +514,11 @@ async function sendEmbedSpecial(context, event) {
      */
     const channels = context.client.guilds.cache.map(guild => {
         const guildChannels = guild.channels.cache.filter(c => c.type === 'text');
-        logger.log('in', guild.name, guildChannels);
-        if (!guildChannels) return null;
+        if (guildChannels.size === 0) return null;
         guildChannels.sort((a, b) => a.position - b.position);
-        return guildChannels[0];
-    }).filter(c => !!c);
-    logger.log(channels);
+        return guildChannels.first();
+    }).filter(c => c !== null && c !== undefined);
+    logger.log('channels', channels);
     const user = context.client.user;
     const embed = new MessageEmbed()
         .setTitle(event.title);
