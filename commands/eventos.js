@@ -511,7 +511,7 @@ async function sendEmbedSpecial(context, event) {
     const user = context.client.user;
     const embed = new MessageEmbed()
         .setTitle(event.title);
-    if (user) embed.setAuthor(user.username, user.avatar)
+    if (user) embed.setAuthor(user.username, user.defaultAvatarURL);
     embed.setFooter('Special event');
     embed.setDescription(event.description);
     embed.setColor(parseInt(event.color, 16));
