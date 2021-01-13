@@ -10,4 +10,18 @@ function normalize(str) {
         .replace(/(\s|-)+/g, " ");
 }
 
-module.exports = {normalize};
+/**
+ * Turns the first character into uppercase
+ * @param {string} str
+ */
+function capitalize(str) {
+    const char = str.charCodeAt(0);
+    const a = "a".charCodeAt(0);
+    const z = "z".charCodeAt(0);
+    if (char >= a && char <= z)
+        return str[0].toLocaleUpperCase() + str.slice(1);
+    else
+        return str;
+}
+
+module.exports = {normalize, capitalize};
