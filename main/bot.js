@@ -10,6 +10,7 @@ const {Logger} = require("../logging/logger");
 const {BOT_EVENTS} = require("./bot_events");
 
 const path = require('path');
+const {pickRandomElement} = require("../generic/array");
 const logger = new Logger(path.basename(__filename, '.js'));
 
 /**
@@ -139,17 +140,22 @@ class Bot {
      * @param {Message} msg
      */
     specialAnswer(msg) {
-        if (msg.content.toLowerCase().includes('gracias')) {
+        const lower = msg.content.toLowerCase();
+        if (lower.includes('gracias')) {
             msg.reply(`de nada, ${apelativoRandom()} ${emoji.SMILING_FACE}`).then();
-        } else if (msg.content.toLowerCase().includes('ol')) {
+        } else if (lower.includes('ol')) {
             const saludos = ["buenas", "qué tal", "holi", "hola", "hey", "sup"];
             const saludo = saludos[Math.round(Math.random() * (saludos.length - 1))];
             msg.reply(`${saludo}, ${apelativoRandom()}!`).then();
-        } else if (msg.content.toLowerCase().includes('b') && msg.content.toLowerCase().includes('noc')) {
+        } else if (lower.includes('b') && lower.includes('noc')) {
             const despedidas = ["buenas noches", "que sueñes con angelitos", "duerme bien", "descansa",
                 "no dejes que te muerdan las chinches", "dulces sueños"];
             const despedida = despedidas[Math.round(Math.random() * (despedidas.length - 1))];
             msg.reply(`${despedida}, ${apelativoRandom()}!`).then();
+        } else if (lower.includes('te fo')) {
+            const part1 = ["ven aquí", "y yo a ti", "quita de ahí", "fumando espero, al hombre que yo quiero",
+                "dale"];
+            msg.reply(`${pickRandomElement(part1)}, ${apelativoRandom()}`).then();
         } else {
             msg.reply(`no sé qué decirte, ${apelativoRandom()}, ¿por qué no pruebas \`${this.config.prefix}ayuda\`?`).then();
         }
