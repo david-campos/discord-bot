@@ -7,12 +7,14 @@ const {Logger} = require("../logging/logger");
 const {popRandomElement, pickRandomElement} = require("../generic/array");
 const {apelativoRandom} = require("../main/apelativos");
 const path = require('path');
+const {pickRandomIdx} = require("../generic/array");
 const {capitalize} = require("../generic/text");
 
 const logger = new Logger(path.basename(__filename, '.js'));
 
-const MIN_PLAYERS = 1;
+const MIN_PLAYERS = 2;
 const WEAPONS_PER_PLAYER = 3;
+const ROUNDS_PER_DEATH = 2;
 
 const WEAPONS = [
     [emoji.PISTOL, 'a', 'gun'],
@@ -27,6 +29,7 @@ const WEAPONS = [
     [emoji.SPOON, 'a', 'spoon'],
     [emoji.CHOPSTICKS, '', 'chopsticks'],
     [emoji.BROCCOLI, '', 'broccoli'],
+    [emoji.CUCUMBER, 'a', 'cucumber'],
     [emoji.WINE_GLASS, '', 'wine'],
     [emoji.WRENCH, 'a', 'wrench'],
     [emoji.HAMMER, 'a', 'hammer'],
@@ -35,8 +38,13 @@ const WEAPONS = [
     [emoji._CARPENTRY_SAW, 'a', 'saw'],
     [emoji.KITCHEN_KNIFE, 'a', 'knife'],
     [emoji.DAGGER, 'a', 'dagger'],
-    [emoji.SCISSORS, 'two', 'scissors']
+    [emoji.SCISSORS, 'two', 'scissors'],
+    [':plunger:', 'a', 'plunger'],
+    [emoji.TEST_TUBE, 'a', 'test tube'],
+    [emoji.ROLLEDUP_NEWSPAPER, 'a', 'rolledup newspaper']
 ];
+
+const WEAPONS_EMOJIS = WEAPONS.map(w => w[0]);
 
 const WAYS = [
     'shooted',
@@ -60,6 +68,8 @@ const ROOMS = [
     [emoji.COUCH_AND_LAMP, 'living room']
 ];
 
+const ROOM_EMOJIS = ROOMS.map(w => w[0]);
+
 const VICTIMS = [
     'the waiter',
     'the butler',
@@ -80,16 +90,17 @@ class GameController {
         this.cmdStartGame = this._requiresGameCreated.bind(this, this.cmdStartGame.bind(this));
         this.cmdJoinGame = this._requiresGameCreated.bind(this, this.cmdJoinGame.bind(this));
         this.cmdLeaveGame = this._requiresGameCreated.bind(this, this.cmdLeaveGame.bind(this));
+        this.cmdCancelGame = this._requiresGameCreated.bind(this, this.cmdCancelGame.bind(this));
     }
 
     /**
      * @param {string} cmd commandName
-     * @param {[string, string, string]} subcommandNames - [join, leave, start]
+     * @param {[string, string, string, string]} subcommandNames - [join, leave, start, cancel]
      * @param {module:"discord.js".Message} message
      * @param {string[]} args
      * @param {Bot} context
      */
-    async cmdNewGame(cmd, [join, leave, start], message, args, context) {
+    async cmdNewGame(cmd, [join, leave, start, cancel], message, args, context) {
         if (['dm', 'unknown'].includes(message.channel.type)) {
             message.reply(`Invalid channel, ${apelativoRandom()}.`);
             return;
@@ -101,10 +112,9 @@ class GameController {
             game.setAuthor(message.member);
             const pref = context.config.prefix;
             await message.channel.send(`New game of **Killer** created by ${game.author.name}.
-
 Use \`${pref}${cmd} ${join}\` to join the game. If you wish to leave the game use \`${pref}${cmd} ${leave}\`.
-
-The game will start when ${game.author.name} introduces \`${pref}${cmd} ${start}\`.`);
+The game will start when ${game.author.name} introduces \`${pref}${cmd} ${start}\`.
+${game.author.name} can cancel the game introducing \`${pref}${cmd} ${cancel}\``);
         }
     }
 
@@ -143,6 +153,19 @@ The game will start when ${game.author.name} introduces \`${pref}${cmd} ${start}
                 'author': 'you can\'t leave the game, you are the creator.',
                 'not-in': `you are already in, ${apelativoRandom()}.`,
             }, message, e);
+        }
+    }
+
+    /**
+     * @param {Message} message
+     * @param {string[]} args
+     * @param {Bot} context
+     */
+    async cmdCancelGame(message, args, context) {
+        /** @type {GameInstance} */
+        const game = this.stateManager.getOrGenerateState(message, context);
+        if (game.author.is(message.author)) {
+            game.finish();
         }
     }
 
@@ -240,6 +263,7 @@ class GameInstance extends BaseChannelState {
         this.controller = controller;
         this.started = false;
         this.turn = 0;
+        this.totalTurns = 0;
         /** @type {Player} */
         this.author = null;
         this.players = {};
@@ -323,16 +347,115 @@ class GameInstance extends BaseChannelState {
             this.murderWay, this.murderer.room
         ));
         await this.author.channel.send(this._genAuthorInstructions());
+        this.lockChannel(this._onMsg.bind(this));
         await new Promise(res => setTimeout(res, 5000));
         await this._sendInitialMessage();
         await this._sendTurn();
     }
 
+    /**
+     * @param {Message} msg
+     * @param {Bot} bot
+     * @private
+     */
+    async _onMsg(msg, bot) {
+        if (msg.author.bot)
+            return;
+        const authorPlayer = this._getPlayers().find(p => p.is(msg.author));
+        if (!authorPlayer)
+            return;
+        if (this.murderer.is(msg.author))
+            return;
+        if (msg.mentions.users.size !== 1)
+            return;
+        const accused = msg.mentions.users.first();
+        if (!this._getPlayers().find(p => p.is(accused)))
+            return;
+        const room = ROOM_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
+        const weapon = WEAPONS_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
+        if (!room || !weapon)
+            return;
+        if (this.murderer.is(accused)
+            && this.murderer.room[0] === room
+            && this.murderer.weapons[this.usedWeapon] === weapon) {
+            await this._win(authorPlayer);
+        } else {
+            await this._lose(authorPlayer);
+        }
+    }
+
     async _passTurn() {
         if (!this.started)
             return;
-        this.turn = (this.turn + 1) % this.playersNum;
+        this.totalTurns += 1;
+        if (this.totalTurns !== 0 && this.totalTurns  % (ROUNDS_PER_DEATH * this.playersNum) === 0) {
+            await this._killOne();
+        }
+        if (!this.started)
+            return;
+        this.turn = this.totalTurns % this.playersNum;
         await this._sendTurn();
+    }
+
+    async _killOne() {
+        const players = this._getPlayers();
+        let killedIdx = pickRandomIdx(players);
+        while (players[killedIdx].is(this.murderer)) {
+            killedIdx++;
+        }
+        const killed = players[killedIdx];
+
+        // Not playing anymore!
+        this._removePlayer(killed.id);
+
+        await this._sendHasDied(killed);
+        if (this.playersNum < 2) {
+            await this._win(this.murderer);
+        }
+    }
+
+    /**
+     * @param {Player} winner
+     * @private
+     */
+    async _win(winner) {
+        const embed = new MessageEmbed();
+        embed.setTitle(`${emoji.TROPHY} ${winner.name} has won!`);
+        embed.setDescription(this._murderedStr(
+            this.murderer.name, this.victim,
+            this.murderer.weapons[this.usedWeapon],
+            this.murderWay, this.murderer.room));
+        await this.channel.send(embed);
+        this.finish();
+    }
+
+    async _lose(loser) {
+        const wasInTurn = this._getPlayers()[this.turn].is(loser);
+
+        this._removePlayer(loser.id);
+
+        const embed = new MessageEmbed();
+        embed.setTitle(`${emoji.CRYING_FACE} ${loser.name} has lost!`);
+        embed.setDescription(`His accusation was wrong, sadly.`);
+
+        this.channel.send(embed).then();
+
+        if (this.playersNum < 2) {
+            await this._win(this.murderer);
+        } else if (wasInTurn) {
+            await this._sendTurn();
+        }
+    }
+
+    /**
+     * @param {Player} player
+     * @private
+     */
+    async _sendHasDied(player) {
+        const embed = new MessageEmbed();
+        embed.setTitle(`${emoji.SKULL_AND_CROSSBONES} ${capitalize(player.name)} has been brutally murdered!`);
+        embed.setDescription(`There is blood and guts everywhere. You are now ${this.playersNum} players.`);
+        await this.channel.send(embed);
     }
 
     async _sendTurn() {
@@ -406,6 +529,7 @@ class GameInstance extends BaseChannelState {
         embed.setDescription(`${capitalize(this.victim)} has appeared death! The murderer is one of you: ${players}.`);
         embed.addField(`${emoji.POLICE_OFFICER} The policeman`, `${this.author.name} is the policeman with access to the clues but, what a shame! He is too stupid to be able to investigate at all. So you will need to try to solve this yourselves.`);
         embed.addField(`${emoji.PAGE_FACING_UP} Initial report`, `The suspects were carring some suspicious items, enumerated here:\n${items}`);
+        embed.addField(`${emoji.HOUSE} Rooms`,`The house has the following rooms:\n${ROOMS.map(r => ` - ${r.join(". ")}`).join("\n")}`);
         // TODO: add info about turns and so
         embed.setTimestamp(new Date());
         await this.channel.send(embed);
@@ -428,7 +552,7 @@ class GameInstance extends BaseChannelState {
     finish() {
         this.started = false;
         this.controller.removeGame(this.key);
-        this.channel.send("Game stopped");
+        this.channel.send("Game stopped").then();
     }
 }
 
