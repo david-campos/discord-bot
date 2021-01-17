@@ -359,27 +359,37 @@ class GameInstance extends BaseChannelState {
      * @private
      */
     async _onMsg(msg, bot) {
+        console.log("Msg: ", msg.content);
         if (msg.author.bot)
             return;
+        console.log("\tNot a bot");
         const authorPlayer = this._getPlayers().find(p => p.is(msg.author));
         if (!authorPlayer)
             return;
+        console.log("\tIs a player");
         if (this.murderer.is(msg.author))
             return;
+        console.log("\tNot the murderer");
         if (msg.mentions.users.size !== 1)
             return;
+        console.log("\tMentions one person");
         const accused = msg.mentions.users.first();
         if (!this._getPlayers().find(p => p.is(accused)))
             return;
+        console.log("\tMentions a player");
         const room = ROOM_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
         const weapon = WEAPONS_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
+        console.log("\tWeapon and room", room, weapon);
         if (!room || !weapon)
             return;
+        console.log("\tLets see");
         if (this.murderer.is(accused)
             && this.murderer.room[0] === room
             && this.murderer.weapons[this.usedWeapon] === weapon) {
+            console.log("\tWin");
             await this._win(authorPlayer);
         } else {
+            console.log("\tLose");
             await this._lose(authorPlayer);
         }
     }
@@ -551,6 +561,7 @@ class GameInstance extends BaseChannelState {
 
     finish() {
         this.started = false;
+        this.unlockChannel();
         this.controller.removeGame(this.key);
         this.channel.send("Game stopped").then();
     }
