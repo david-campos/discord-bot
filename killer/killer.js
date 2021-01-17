@@ -275,6 +275,9 @@ class GameInstance extends BaseChannelState {
         this.murderWay = pickRandomElement(WAYS);
         this.victim = pickRandomElement(VICTIMS);
         this.usedWeapon = Math.round(Math.random() * (WEAPONS_PER_PLAYER - 1));
+
+        this.weaponFound = false;
+        this.roomFound = false;
     }
 
     /**
