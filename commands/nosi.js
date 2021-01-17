@@ -16,8 +16,8 @@ module.exports = {
             try {
                 const response = await axios.get("https://yesno.wtf/api/");
                 const embed = new MessageEmbed()
-                    .setTitle(`${emoji.CRYSTAL_BALL} La respuesta es: `
-                        + `**${response.data.answer === 'yes' ? 'sí' : 'no'}**.`)
+                    .setTitle(`${emoji.CRYSTAL_BALL} ${args.join(" ")}`)
+                    .setDescription(`La respuesta es: **${response.data.answer === 'yes' ? 'sí' : 'no'}**.`)
                     .setColor(response.data.answer === 'yes' ? 0x74e987 : 0xe97487)
                     .setImage(response.data.image);
                 message.channel.send(embed).then();
