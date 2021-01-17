@@ -67,6 +67,7 @@ const ROOMS = [
     [emoji.COOKING, 'kitchen'],
     [emoji.COUCH_AND_LAMP, 'living room']
 ];
+const ROOMS_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 const ROOM_EMOJIS = ROOMS.map(w => w[0]);
 
@@ -349,7 +350,7 @@ class GameInstance extends BaseChannelState {
         await this.author.channel.send(this._genAuthorInstructions());
         this.lockChannel(this._onMsg.bind(this));
         await new Promise(res => setTimeout(res, 5000));
-        await this._sendInitialMessage();
+        await this._sendInitialReport(true);
         await this._sendTurn();
     }
 
@@ -359,37 +360,52 @@ class GameInstance extends BaseChannelState {
      * @private
      */
     async _onMsg(msg, bot) {
-        console.log("Msg: ", msg.content);
         if (msg.author.bot)
             return;
-        console.log("\tNot a bot");
         const authorPlayer = this._getPlayers().find(p => p.is(msg.author));
         if (!authorPlayer)
             return;
-        console.log("\tIs a player");
+        if (msg.content.trim().toLowerCase() === "report") {
+            this._sendInitialReport(false).then();
+            return;
+        }
         if (this.murderer.is(msg.author))
             return;
-        console.log("\tNot the murderer");
         if (msg.mentions.users.size !== 1)
             return;
-        console.log("\tMentions one person");
         const accused = msg.mentions.users.first();
-        if (!this._getPlayers().find(p => p.is(accused)))
+        const accusedP = this._getPlayers().find(p => p.is(accused));
+        if (!accusedP)
             return;
-        console.log("\tMentions a player");
-        const room = ROOM_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
-        const weapon = WEAPONS_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
-        console.log("\tWeapon and room", room, weapon);
-        if (!room || !weapon)
+        let room = ROOM_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
+        let weapon = WEAPONS_EMOJIS.find(em => msg.content.indexOf(em) >= 0);
+        if (!weapon) {
+            const match = msg.content.match(/\b[1-9][0-9]?\b/);
+            if (match) {
+                const idx = parseInt(match[0]);
+                if (idx > 0 && idx <= WEAPONS_PER_PLAYER)
+                    weapon = accusedP.weapons[idx - 1][0];
+            }
+        }
+        if (!room) {
+            const match = msg.content.match(/\b[A-Z]\b/i);
+            if (match) {
+                const idx = ROOMS_LETTERS.indexOf(match[0].toUpperCase());
+                if (idx >= 0 && idx < ROOMS.length)
+                    room = ROOMS[idx][0];
+            }
+        }
+        if (!room || !weapon) {
+            msg.react(emoji.QUESTION_MARK).then();
             return;
-        console.log("\tLets see");
+        }
         if (this.murderer.is(accused)
             && this.murderer.room[0] === room
-            && this.murderer.weapons[this.usedWeapon] === weapon) {
-            console.log("\tWin");
+            && this.murderer.weapons[this.usedWeapon][0] === weapon) {
+            msg.react(emoji.THUMBS_UP).then();
             await this._win(authorPlayer);
         } else {
-            console.log("\tLose");
+            msg.react(emoji.THUMBS_DOWN).then();
             await this._lose(authorPlayer);
         }
     }
@@ -527,19 +543,22 @@ class GameInstance extends BaseChannelState {
             .map(p => `${p.room[0]} ${p.name} was in the ${p.room[1]}`).join("\n");
     }
 
-    async _sendInitialMessage() {
+    async _sendInitialReport(isFirst) {
         if (!this.started)
             return;
         const names = this._getPlayers().map(p => p.name);
         const players = `${names.slice(0, names.length - 1).join(',')} or ${names[names.length - 1]}`;
-        const items = this._getPlayers().map(p => `- **${p.name}**: ${p.weapons.map(w => w.join(' ')).join(', ')}`).join('\n');
+        const items = this._getPlayers().map(p => `- **${p.name}**:\n${p.weapons.map((w, i) => `-- ${i + 1} ${w.join(' ')}`).join(',\n')}`).join('\n');
         const embed = new MessageEmbed();
         embed.setTitle(`${emoji.SKULL_AND_CROSSBONES} There has been **a murder**!`);
         embed.setColor(0xff0000);
         embed.setDescription(`${capitalize(this.victim)} has appeared death! The murderer is one of you: ${players}.`);
-        embed.addField(`${emoji.POLICE_OFFICER} The policeman`, `${this.author.name} is the policeman with access to the clues but, what a shame! He is too stupid to be able to investigate at all. So you will need to try to solve this yourselves.`);
+        if (isFirst)
+            embed.addField(`${emoji.POLICE_OFFICER} The policeman`,
+                `${this.author.name} is the policeman with access to the clues but, what a shame! He is too stupid to be able to investigate at all. So you will need to try to solve this yourselves.`
+            );
         embed.addField(`${emoji.PAGE_FACING_UP} Initial report`, `The suspects were carring some suspicious items, enumerated here:\n${items}`);
-        embed.addField(`${emoji.HOUSE} Rooms`,`The house has the following rooms:\n${ROOMS.map(r => ` - ${r.join(". ")}`).join("\n")}`);
+        embed.addField(`${emoji.HOUSE} Rooms`,`The house has the following rooms:\n${ROOMS.map((r, i) => `- ${ROOMS_LETTERS[i]} ${r[0]} ${capitalize(r[1])}`).join("\n")}`);
         // TODO: add info about turns and so
         embed.setTimestamp(new Date());
         await this.channel.send(embed);
