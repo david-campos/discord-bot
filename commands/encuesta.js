@@ -7,8 +7,20 @@ const SECS_TIME_UPDATE = 10;
 const DEFAULT_ANSWERS = [emoji.THUMBS_UP, emoji.THUMBS_DOWN];
 const NUM_EMOJIS = ['\u0031\ufe0f\u20e3', '\u0032\ufe0f\u20e3', '\u0033\ufe0f\u20e3', '\u0034\ufe0f\u20e3', '\u0035\ufe0f\u20e3', '\u0036\ufe0f\u20e3', '\u0037\ufe0f\u20e3', '\u0038\ufe0f\u20e3', '\u0039\ufe0f\u20e3', '\ud83d\udd1f'];
 
+/**
+ * @param {string} text
+ * @return {boolean}
+ */
 function isEmoji(text) {
     return /\p{Emoji}/u.test(text) && (NUM_EMOJIS.includes(text) || Object.values(emoji).includes(text));
+}
+
+/**
+ * @param {number} seconds
+ * @return {string}
+ */
+function minsOrSecs(seconds) {
+    return seconds <= 60 ? `${seconds}"` : `${Math.floor(seconds / 60)}'${(seconds % 60 !== 0) ? ` ${seconds % 60}"` : ''}`;
 }
 
 /**
@@ -107,9 +119,14 @@ module.exports = {
             });
             const emojis = NUM_EMOJIS.filter(em => !answers.includes(em)); // already an emoji
             const areEmojis = answers.map(ans => isEmoji(ans));
+            const allEmojis = areEmojis.reduce((p, c) => p && c);
+            let next = 0;
+            const reactions = answers.map((_, i) =>
+                areEmojis[i] ? answers[i] : emojis[next++]
+            );
             const answersStr = answers.map((ans, idx) =>
-                areEmojis[idx] ? ans : `${emojis[idx]} *${ans}*`
-            ).join("\n");
+                areEmojis[idx] ? ans : `${reactions[idx]} *${ans}*`
+            ).join(allEmojis ? " " : "\n");
             const embed = new MessageEmbed()
                 .setTitle(`${emoji.BAR_CHART} ${question}`)
                 .setDescription(answersStr)
@@ -118,13 +135,9 @@ module.exports = {
                     message.member ? message.member.displayName : message.author.username,
                     message.author.avatarURL()
                 )
-                .setFooter(`${seconds}" left`);
+                .setFooter(`Duración: ${minsOrSecs(seconds)}`);
 
             const msg = await message.channel.send(embed);
-            let next = 0;
-            const reactions = answers.map((_, i) =>
-                areEmojis[i] ? answers[i] : emojis[next++]
-            );
             reactions.forEach(r => msg.react(r));
 
             let canUpdate = true;
@@ -149,13 +162,18 @@ module.exports = {
                 msg.edit(embed).then();
             });
 
-            for (let left = seconds - SECS_TIME_UPDATE; left > 0 && canUpdate; left -= SECS_TIME_UPDATE) {
+            const nextStep = seconds => seconds > 60 ? 60 : SECS_TIME_UPDATE;
+            let step = nextStep(seconds);
+            let left = seconds - step;
+            while (left > 0 && canUpdate) {
                 await new Promise(res => setTimeout(() => {
                     if (!canUpdate) return;
-                    embed.setFooter(`${left}" left`)
+                    embed.setFooter(`Finaliza en menos de ${minsOrSecs(left)}`)
                     msg.edit(embed);
                     res();
-                }, SECS_TIME_UPDATE * 1000));
+                }, step * 1000));
+                step = nextStep(left);
+                left -= step;
             }
         }
     }]
