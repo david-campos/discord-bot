@@ -19,6 +19,8 @@ class DamasGame extends BaseChannelState {
         this.board = []
         this.turn = 0;
 
+        this.checkers = [8, 8];
+
         for (let i = 0; i < 8; ++i) {
             const line = [];
             for (let j = 0; j < 4; ++j) {
@@ -53,9 +55,23 @@ class DamasGame extends BaseChannelState {
         this.setTile(fromI, fromJ, 0);
     }
 
+    tryUpgrade([i, j]) {
+        const tile = this.getTile(i, j);
+        const player = this.getPlayer(tile);
+        if (!this.esDama(tile) && ((player === 1 && i === 7) || (player === 2 && i === 0)))
+            this.setTile(i, j, tile + 2)
+    }
+
+    eat(cells) {
+        for (let cell of cells) {
+            this.checkers[this.getPlayer(this.board[cell[0]][cell[1]]) - 1]--;
+            this.board[cell[0]][cell[1]] = 0;
+        }
+    }
+
     getPlayer(tile) {
         if (tile < 3) return tile;
-        else return tile % 2 + 1;
+        else return (tile - 1) % 2 + 1;
     }
 
     esDama(tile) {
@@ -71,40 +87,57 @@ class DamasGame extends BaseChannelState {
             if (player === 1 && vi === -1) return false;
             if (player === 2 && vi === +1) return false;
         }
-        const vj = j2 > j ? 1 : -1;
+        const vj = (i % 2 === 0) ? (j2 >= j ? 1 : -1) : (j2 > j ? 1 : -1);
         let eating = false;
+        let nextMustEat = false;
         while (i !== i2) {
             if (i % 2 === 0) j += vj < 0 ? -1 : 0;
             else j += vj < 0 ? 0 : 1;
             i += vi;
             const other = this.getPlayer(this.board[i][j]);
+            console.log(i, j, dama, other, nextMustEat, eating);
             if (other === player) return false;
-            else if(other === 0) return i === i2 && j === j2;
-            else if (!eating) {
+            else if(other === 0) {
+                if (!dama && nextMustEat)
+                    return false;
+                if (!dama && !eating)
+                    return i === i2 && j === j2;
+                eating = false;
+                nextMustEat = true;
+            } else if (!eating) {
                 eaten.push([i, j]);
+                nextMustEat = false;
                 eating = true;
             }
             else return false;
         }
-        return false;
+        return i === i2 && j === j2;
     }
 
     boardPrint() {
         let str = emoji.BLACK_LARGE_SQUARE;
         for (let j = 0; j < 8; ++j)
             str += `:${LETTERS_PREF}${LETTERS[j]}:`;
+        str += emoji.BLACK_LARGE_SQUARE;
         for (let i = 0; i < 8; ++i) {
             str += `\n:${NUMBERS[i]}:`;
             for (let j = 0; j < 8; ++j) {
                 if ((i + j) % 2 === 1) str += emoji.BROWN_SQUARE;
                 else {
                     const tile = this.getTile(i, j);
-                    if (tile === 1) str += emoji.WHITE_CIRCLE;
-                    else if (tile === 2) str += emoji.BLUE_CIRCLE;
+                    const player = this.getPlayer(tile);
+                    const dama = this.esDama(tile);
+                    if (player === 1) str += dama ? emoji.WHITE_HEART : emoji.WHITE_CIRCLE;
+                    else if (player === 2) str += dama ? emoji.BLUE_HEART : emoji.BLUE_CIRCLE;
                     else str += emoji.WHITE_LARGE_SQUARE;
                 }
             }
+            str += `:${NUMBERS[i]}:`;
         }
+        str += "\n" + emoji.BLACK_LARGE_SQUARE;
+        for (let j = 0; j < 8; ++j)
+            str += `:${LETTERS_PREF}${LETTERS[j]}:`;
+        str += emoji.BLACK_LARGE_SQUARE;
         return str;
     }
 
@@ -116,22 +149,47 @@ class DamasGame extends BaseChannelState {
     }
 
     start() {
-        if (this.players.length < 2) return;
+        // if (this.players.length < 2) return;
         this.hasStarted = true;
         this.channel.send(this.boardPrint()).then();
         this.lockChannel(this.onMsg.bind(this));
     }
 
+    win(player) {
+        const embed = new MessageEmbed();
+        embed.setTitle(`${emoji.TROPHY} Ganador: ${this.players[player].displayName}`);
+        embed.setDescription(`${this.players[player].displayName} ha ganado.`);
+        this.channel.send(embed).then();
+        this.finish();
+    }
+
+    finish() {
+        this.unlockChannel();
+    }
+
+    /**
+     * @param {string} text
+     * @return {[number, number]}
+     */
+    textToCoord(text) {
+        const oneCode ="1".charCodeAt(0);
+        const aCode = "A".charCodeAt(0);
+        if (/^[1-8][A-H]$/.test(text)) {
+            return [text.charCodeAt(0) - oneCode, text.charCodeAt(1) - aCode];
+        } else {
+            return [text.charCodeAt(1) - oneCode, text.charCodeAt(0) - aCode];
+        }
+    }
+
     onMsg(msg, bot) {
-        if (this.players[this.turn].user.id !== msg.author.id)
+        // if (this.players[this.turn].user.id !== msg.author.id)
+        if (msg.author.id !== this.players[0].user.id)
             return;
-        const moves = msg.content.match(/^([1-8][A-H])(?:[^0-9A-Z]([1-8][A-H]))+$/i);
-        console.log(moves);
+        const moves = msg.content.match(/^([1-8][A-H]|[A-H][1-8])(?:[^0-9A-Z]([1-8][A-H]|[A-H][1-8]))+$/i);
         if (moves) {
             const coords = [];
             for (let i = 1; i < moves.length; ++i) {
-                const move = moves[i].toUpperCase();
-                const toCoord = [move.charCodeAt(0) - "1".charCodeAt(0), move.charCodeAt(1) - "A".charCodeAt(0)];
+                const toCoord = this.textToCoord(moves[i].toUpperCase());
                 if (!this.isValidTile(...toCoord)) {
                     console.log("invalid tile", toCoord);
                     msg.react(emoji.NO_ENTRY).then();
@@ -147,11 +205,11 @@ class DamasGame extends BaseChannelState {
             const tile = this.getTile(...coords[0]);
             const player = this.getPlayer(tile);
             const dama = this.esDama(tile);
-            if (player - 1 !== this.turn) {
+            /*if (player - 1 !== this.turn) {
                 console.log("Not your turn", player, this.turn);
                 msg.react(emoji.NO_ENTRY).then();
                 return;
-            }
+            }*/
             const eaten = [];
             let prev = this.toBoard(...coords[0]);
             for (let i = 1; i < coords.length; ++i) {
@@ -166,6 +224,10 @@ class DamasGame extends BaseChannelState {
                 prev = next;
             }
             this.move(coords[0], coords[coords.length - 1]);
+            this.tryUpgrade(coords[coords.length - 1]);
+            this.eat(eaten);
+            if (this.checkers[0] === 0) this.win(2);
+            else if (this.checkers[1] === 0) this.win(1);
             this.turn = (this.turn + 1) % 2;
             msg.react(emoji.CHECK_MARK_BUTTON).then();
             this.channel.send(this.boardPrint()).then();
@@ -196,7 +258,7 @@ module.exports = {
             }
             state.addPlayer(message.member);
             message.react(emoji.THUMBS_UP).then();
-            if (state.players.length === 2)
+            // if (state.players.length === 2)
                 state.start();
         }
     }]
