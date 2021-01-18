@@ -165,6 +165,19 @@ async function answerTopUserStats(message, context) {
 
 const controller = new FlagController();
 
+const SUBCOMMANDS = {
+    speed: controller.cmdSpeedRunStart.bind(controller),
+    hint: controller.cmdHint.bind(controller),
+    expert: controller.cmdExpertRunStart.bind(controller),
+    stats: async (message, args, context) => {
+        if (message.mentions.users.size > 0) {
+            await answerMentionedUserStats(message, context);
+        } else {
+            await answerTopUserStats(message, context);
+        }
+    }
+};
+
 module.exports = {
     init: function (context) {
         ScoreEntry.init({
@@ -178,54 +191,54 @@ module.exports = {
         {
             name: 'flag',
             shortDescription: 'Acierta la bandera (en inglés)',
-            description: 'Gives a random flag to guess or guesses the current flag obtained this way',
+            description: 'Guess the corresponding countries to given flags.',
             usage: [
-                {name: 'guess', description: 'country you guess the flag belongs to', optional: true}
+                {
+                    subcommand: 'Basic',
+                    description: 'Gives a random flag to guess or guesses the current flag obtained this way',
+                    args: [{name: 'guess', description: 'country you guess the flag belongs to', optional: true}]
+                },
+                {
+                    subcommand: 'Speed',
+                    description: 'Initiates a flag speedrun. During the speedrun anyone can answer, flags will come one after the other, the first person to answer the correct country for the flag will get the point.',
+                    args: [
+                        {name: 'speed', isLiteral: true},
+                        {
+                            name: 'N',
+                            description: 'number of flags in the speedrun',
+                            optional: true,
+                            format: 'positive integer',
+                            defaultValue: DEFAULT_SPEEDRUN_LENGTH
+                        }
+                    ],
+                },
+                {
+                    subcommand: 'Hint',
+                    description: 'Gives a hint for the current flag guess',
+                    args: [{name: 'hint', isLiteral: true}],
+                },
+                {
+                    subcommand: 'Expert',
+                    description: 'Start an expert run, a challenge not made for the faint of heart!',
+                    args: [{name: 'expert', isLiteral: true}]
+                },
+                {
+                    subcommand: 'Stats',
+                    description: "Lists flag scores. By default it lists the top user stats, unless other users are mentioned in the message.",
+                    args: [
+                        {name: 'stats', isLiteral: true},
+                        {
+                            name: '...@someone', description: 'mention users to see only the specified users stats',
+                            optional: true, format: 'discord mention'
+                        }
+                    ]
+                }
             ],
-            execute: controller.cmdBasic.bind(controller)
-        },
-        {
-            name: 'flag-speed',
-            shortDescription: 'Speed-run de banderas (en inglés)',
-            description: 'Initiates a flag speedrun. During the speedrun anyone can answer, flags will come one after the other, the first person to answer the correct country for the flag will get the point.',
-            usage: [
-                {name: 'N', description: 'number of flags in the speedrun', optional: true, format: 'positive integer',
-                    defaultValue: DEFAULT_SPEEDRUN_LENGTH}
-            ],
-            execute: controller.cmdSpeedRunStart.bind(controller)
-        },
-        {
-            name: 'flag-hint',
-            shortDescription: 'Pista de banderas (en inglés)',
-            description: 'Gives a hint for the current flag guess',
-            usage: [],
-            execute: controller.cmdHint.bind(controller)
-        },
-        {
-            name: 'flag-expert',
-            shortDescription: 'Expert-run de banderas (en inglés)',
-            description: 'Start an expert run, a challenge not made for the faint of heart!',
-            usage: [],
-            execute: controller.cmdExpertRunStart.bind(controller)
-        },
-        {
-            name: 'flag-stats',
-            usage: [{
-                name: '...@someone', description: 'mention users to see only the specified users stats',
-                optional: true, format: 'discord mention'
-            }],
-            shortDescription: 'Puntuaciones de banderas (en inglés)',
-            description: "Lists flag scores. By default it lists the top user stats, unless other users are mentioned in the message.",
-            /**
-             * @param {Message} message
-             * @param {string[]} args
-             * @param {Bot} context
-             */
-            async execute(message, args, context) {
-                if (message.mentions.users.size > 0) {
-                    await answerMentionedUserStats(message, context);
+            execute: (msg, args, bot) => {
+                if (args.length > 0 && (args[0] in SUBCOMMANDS)) {
+                    SUBCOMMANDS[args[0]](msg, args.slice(1), bot);
                 } else {
-                    await answerTopUserStats(message, context);
+                    controller.cmdBasic(msg, args, bot);
                 }
             }
         }
