@@ -1,6 +1,7 @@
 const {MessageEmbed} = require('discord.js');
 const config = require('../bot-config.json');
 const {apelativoRandom} = require("../main/apelativos");
+const emojis = require('../emojis2');
 
 const PAGE_SIZE = 24;
 
@@ -41,8 +42,8 @@ function argumentUsage(arg, tabLevel) {
                 return '*%error: unknown group%*'; // Shouldn't happen
         }
     } else {
-        const tabs = tabLevel > 0 ? `${new Array(2 * tabLevel).fill(' ').join('')} ` : '';
-        const tabs_more = `${new Array(2 * (tabLevel + 1)).fill(' ').join('')} `;
+        const tabs = tabLevel > 0 ? `${new Array(tabLevel).fill(emojis.BLACK_LARGE_SQUARE).join('')} ` : '';
+        const tabs_more = `${new Array(tabLevel + 1).fill(emojis.BLACK_LARGE_SQUARE).join('')} `;
         const lines = [`${tabs}**${arg.name}**${arg.optional ? ' *(opcional)*' : ''}: ${arg.description}`];
         if (arg.format) lines.push(`${tabs_more}Formato: ${arg.format}`);
         if (arg.defaultValue) lines.push(`${tabs_more}Por defecto: ${arg.defaultValue}`)
@@ -72,12 +73,13 @@ function usageDescription(command) {
         fields.push(...command.usage.map(subcommand => {
             const definition = completeDefinition(argumentDefinition(subcommand.args));
             const lines = [definition, subcommand.description];
-            if (subcommand.args.length !== 1 || !subcommand.args[0].isLiteral) {
+            const args = subcommand.args.filter(a => a.description);
+            if (args.length > 0) {
                 lines.push('Detalles:');
-                lines.push(argumentUsage(subcommand.args, 1));
+                lines.push(argumentUsage(args, 1));
             }
             return {
-                name: subcommand.subcommand,
+                name: `${emojis.SMALL_BLUE_DIAMOND} ${subcommand.subcommand}`,
                 value: lines.join('\n')
             };
         }));
