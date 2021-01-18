@@ -17,7 +17,8 @@ const SUBCOMMANDS = {
 module.exports = {
     commands: [{
         name: GAME_CMD,
-        hidden: true,
+        shortDescription: "Game.",
+        description: "Game for at least three players about finding who is the murderer.",
         execute: (msg, args, ctx) => {
             const func = (args[0] in SUBCOMMANDS) ?
                 SUBCOMMANDS[args[0]] : MAIN_CMD;

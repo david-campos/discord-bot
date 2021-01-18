@@ -39,9 +39,11 @@ const WEAPONS = [
     [emoji.KITCHEN_KNIFE, 'a', 'knife'],
     [emoji.DAGGER, 'a', 'dagger'],
     [emoji.SCISSORS, 'two', 'scissors'],
+    [emoji.AVOCADO, 'an', 'avocado'],
     [':plunger:', 'a', 'plunger'],
     [emoji.TEST_TUBE, 'a', 'test tube'],
-    [emoji.ROLLEDUP_NEWSPAPER, 'a', 'rolledup newspaper']
+    [emoji.ROLLEDUP_NEWSPAPER, 'a', 'rolledup newspaper'],
+    [emoji.BRICK, 'a', 'brick']
 ];
 
 const WEAPONS_EMOJIS = WEAPONS.map(w => w[0]);
@@ -182,7 +184,7 @@ ${game.author.name} can cancel the game introducing \`${pref}${cmd} ${cancel}\``
                 await game.start();
             } catch (e) {
                 await this._replyOrThrow({
-                    'not-enough-players': `the number of players is not enough (${game.players.length}/${MIN_PLAYERS})!`,
+                    'not-enough-players': `the number of players is not enough (${game.playersNum}/${MIN_PLAYERS})!`,
                 }, message, e);
             }
         } else {
@@ -556,13 +558,14 @@ class GameInstance extends BaseChannelState {
         embed.setTitle(`${emoji.SKULL_AND_CROSSBONES} There has been **a murder**!`);
         embed.setColor(0xff0000);
         embed.setDescription(`${capitalize(this.victim)} has appeared death! The murderer is one of you: ${players}.`);
-        if (isFirst)
-            embed.addField(`${emoji.POLICE_OFFICER} The policeman`,
-                `${this.author.name} is the policeman with access to the clues but, what a shame! He is too stupid to be able to investigate at all. So you will need to try to solve this yourselves.`
+        if (isFirst) {
+            embed.addField(`${emoji.POLICE_OFFICER} The police`,
+                `${this.author.name} is the policeman/woman with access to the clues but, what a shame! He/she is too stupid to be able to investigate at all. So you will need to try to solve this yourselves.`
             );
+            embed.addField(`${emoji.QUESTION_MARK} Gameplay`, `On each turn, the player which has the turn can ask for **only one** clue to the policeman, which will answer whether the clue was find or not.\nExample: *Has poison been found in the blood of the victim?*.\nPlayers can also ask the police in which room was another player at the moment of the crime.\nAt any moment, you can accuse another player by mentioning them and indicating weapon and room. Be careful: if you are right, you win, if you are not, you lose!`);
+        }
         embed.addField(`${emoji.PAGE_FACING_UP} Initial report`, `The suspects were carring some suspicious items, enumerated here:\n${items}`);
         embed.addField(`${emoji.HOUSE} Rooms`,`The house has the following rooms:\n${ROOMS.map((r, i) => `- ${ROOMS_LETTERS[i]} ${r[0]} ${capitalize(r[1])}`).join("\n")}`);
-        // TODO: add info about turns and so
         embed.setTimestamp(new Date());
         await this.channel.send(embed);
     }
