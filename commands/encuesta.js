@@ -2,6 +2,15 @@ const {MessageEmbed} = require('discord.js');
 const emoji = require('../emojis2');
 const {apelativoRandom} = require("../main/apelativos");
 
+const SECS_TIME_UPDATE = 10;
+
+const DEFAULT_ANSWERS = [emoji.THUMBS_UP, emoji.THUMBS_DOWN];
+const NUM_EMOJIS = ['\u0031\ufe0f\u20e3', '\u0032\ufe0f\u20e3', '\u0033\ufe0f\u20e3', '\u0034\ufe0f\u20e3', '\u0035\ufe0f\u20e3', '\u0036\ufe0f\u20e3', '\u0037\ufe0f\u20e3', '\u0038\ufe0f\u20e3', '\u0039\ufe0f\u20e3', '\ud83d\udd1f'];
+
+function isEmoji(text) {
+    return /\p{Emoji}/u.test(text) && (NUM_EMOJIS.includes(text) || Object.values(emoji).includes(text));
+}
+
 /**
  * @param {{text: string}} obj
  */
@@ -47,7 +56,9 @@ module.exports = {
             }, {
                 name: 'respuestas',
                 description: 'Al menos dos y hasta diez respuestas separadas por espacios. Puedes entrecomillar las respuestas para poder usar espacios en ellas.',
-                format: '"Respuesta 1" "Respuesta 2" Respuesta3'
+                optional: true,
+                format: '"Respuesta 1" "Respuesta 2" Respuesta3',
+                defaultValue: DEFAULT_ANSWERS.join(" / ")
             }
         ],
         /**
@@ -73,60 +84,78 @@ module.exports = {
                 message.reply(`especifica una pregunta y al menos dos respuestas, ${apelativoRandom()}.`).then();
                 return;
             }
+            /** @type {string[]} */
             const answers = [];
             while (obj.text) {
-                answers.push(getNext(obj));
+                const ans = getNext(obj);
+                if (ans && !answers.includes(ans))
+                    answers.push(ans);
+                if (answers.length > 10) {
+                    message.reply(`más de diez respuestas no manejo, ${apelativoRandom()}.`).then();
+                    return;
+                }
             }
             if (answers.length < 2) {
-                message.reply(`necesito al menos dos respuestas, ${apelativoRandom()}.`).then();
-            } else if (answers.length > 10) {
-                message.reply(`más de diez respuestas no manejo, ${apelativoRandom()}.`).then();
-            } else {
-                const emojis = ['\u0031\ufe0f\u20e3', '\u0032\ufe0f\u20e3', '\u0033\ufe0f\u20e3', '\u0034\ufe0f\u20e3', '\u0035\ufe0f\u20e3', '\u0036\ufe0f\u20e3', '\u0037\ufe0f\u20e3', '\u0038\ufe0f\u20e3', '\u0039\ufe0f\u20e3', '\ud83d\udd1f'];
-                const answersStr = answers.map((ans, idx) => `${emojis[idx]} *${ans}*`).join("\n");
-                const embed = new MessageEmbed()
-                    .setTitle(`${emoji.BAR_CHART} ${question}`)
-                    .setDescription(answersStr)
-                    .setColor(0x0077ee)
-                    .setAuthor(
-                        message.member ? message.member.displayName : message.author.username,
-                        message.author.avatarURL()
-                    )
-                    .setFooter(`${seconds}" left`);
+                answers.splice(0, answers.length, ...DEFAULT_ANSWERS);
+            }
+            NUM_EMOJIS.forEach((em, emIdx) => {
+                const idx = answers.indexOf(em);
+                if (idx === -1) return;
+                const aux = answers[emIdx];
+                answers[emIdx] = answers[idx];
+                answers[idx] = aux;
+            });
+            const emojis = NUM_EMOJIS.filter(em => !answers.includes(em)); // already an emoji
+            const areEmojis = answers.map(ans => isEmoji(ans));
+            const answersStr = answers.map((ans, idx) =>
+                areEmojis[idx] ? ans : `${emojis[idx]} *${ans}*`
+            ).join("\n");
+            const embed = new MessageEmbed()
+                .setTitle(`${emoji.BAR_CHART} ${question}`)
+                .setDescription(answersStr)
+                .setColor(0x0077ee)
+                .setAuthor(
+                    message.member ? message.member.displayName : message.author.username,
+                    message.author.avatarURL()
+                )
+                .setFooter(`${seconds}" left`);
 
-                const msg = await message.channel.send(embed);
-                answers.forEach((_, i) => msg.react(emojis[i]));
+            const msg = await message.channel.send(embed);
+            let next = 0;
+            const reactions = answers.map((_, i) =>
+                areEmojis[i] ? answers[i] : emojis[next++]
+            );
+            reactions.forEach(r => msg.react(r));
 
-                let canUpdate = true;
-                const filter = (reaction, user) => emojis.includes(reaction.emoji.name);
-                msg.awaitReactions(filter, {time: seconds * 1000}).then(collected => {
-                    canUpdate = false;
-                    const total = collected.reduce((p, c) => p + c.count - 1, 0);
-                    embed.setTitle(`${emoji.BAR_CHART} Encuesta finalizada`)
-                        .setDescription(`**${question}**`)
-                        .setFooter(`${seconds} s.`)
-                        .setColor(0x0)
-                        .addFields(...answers.map((ans, idx) => {
-                            const v = collected.find(v => v.emoji.name === emojis[idx]);
-                            if (!v) return null;
-                            const perc = total > 0 ? Math.round(10000 * (v.count - 1) / total) / 100 : 0;
-                            return {
-                                name: `${v.emoji} *${ans}*`,
-                                value: `**${v.count - 1} voto${v.count > 2 ? '' : 's'} (${perc}%)**`,
-                                inline: true
-                            };
-                        }));
-                    msg.edit(embed).then();
-                });
+            let canUpdate = true;
+            const filter = (reaction, user) => reactions.includes(reaction.emoji.name);
+            msg.awaitReactions(filter, {time: seconds * 1000}).then(collected => {
+                canUpdate = false;
+                const total = collected.reduce((p, c) => p + c.count - 1, 0);
+                embed.setTitle(`${emoji.BAR_CHART} Encuesta finalizada`)
+                    .setDescription(`**${question}**`)
+                    .setFooter(`${seconds} s.`)
+                    .setColor(0x0)
+                    .addFields(...answers.map((ans, idx) => {
+                        const v = collected.find(v => v.emoji.name === reactions[idx]);
+                        if (!v) return null;
+                        const perc = total > 0 ? Math.round(10000 * (v.count - 1) / total) / 100 : 0;
+                        return {
+                            name: areEmojis[idx] ? ans : `${v.emoji} *${ans}*`,
+                            value: `**${v.count - 1} voto${v.count > 2 ? '' : 's'} (${perc}%)**`,
+                            inline: true
+                        };
+                    }));
+                msg.edit(embed).then();
+            });
 
-                for (let left = seconds - 30; left > 0 && canUpdate; left -= 30) {
-                    await new Promise(res => setTimeout(() => {
-                        if (!canUpdate) return;
-                        embed.setFooter(`${left}" left`)
-                        msg.edit(embed);
-                        res();
-                    }, 30000));
-                }
+            for (let left = seconds - SECS_TIME_UPDATE; left > 0 && canUpdate; left -= SECS_TIME_UPDATE) {
+                await new Promise(res => setTimeout(() => {
+                    if (!canUpdate) return;
+                    embed.setFooter(`${left}" left`)
+                    msg.edit(embed);
+                    res();
+                }, SECS_TIME_UPDATE * 1000));
             }
         }
     }]

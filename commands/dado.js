@@ -22,7 +22,7 @@ module.exports = {
          */
         async execute(message, args, context) {
             let faces = 6;
-            if (/[1-9][0-9]*/.test(args[0])) {
+            if (/^[1-9][0-9]*$/.test(args[0])) {
                 faces = parseInt(args[0], 10);
             }
             const chosen = Math.round(Math.random() * (faces - 1)) + 1;

@@ -1,4 +1,3 @@
-const {MessageEmbed} = require('discord.js');
 const emoji = require('../emojis2');
 
 module.exports = {
@@ -14,9 +13,9 @@ module.exports = {
          */
         async execute(message, args, context) {
             args.forEach(arg => console.log(
-                /\p{Emoji}/u.test(arg),
-                arg.charCodeAt(0),
-                Object.entries(emoji).find(([k, v]) => arg === v)));
+                `"${arg}"`,
+                /^\p{Emoji}+$/u.test(arg) || (/\p{Emoji}/u.test(arg) && Object.values(emoji).includes(arg))
+            ));
         }
     }]
 }
