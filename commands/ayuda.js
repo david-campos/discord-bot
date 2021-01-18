@@ -2,7 +2,7 @@ const {MessageEmbed} = require('discord.js');
 const config = require('../bot-config.json');
 const {apelativoRandom} = require("../main/apelativos");
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 24;
 
 /**
  * @param {CommandArgumentDefinition} arg
